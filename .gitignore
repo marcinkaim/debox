@@ -1,0 +1,26 @@
+# --- Python Virtual Environment ---
+# This directory contains the isolated Python interpreter and libraries.
+# It should NEVER be committed to version control.
+venv/
+
+# --- Python Cache Files ---
+# These are auto-generated files that can be recreated.
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# --- Python Build Artifacts ---
+# Directories created when building packages.
+build/
+dist/
+*.egg-info/
+
+# --- IDE / Editor Specific ---
+# Configuration files from popular editors like VS Code and PyCharm.
+.vscode/
+.idea/
+
+# --- Testing Artifacts ---
+# Cache directories from testing tools like pytest.
+.pytest_cache/
