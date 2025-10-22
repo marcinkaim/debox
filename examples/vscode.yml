@@ -1,0 +1,63 @@
+# Schema version for this configuration file.
+# This allows the 'debox' tool to handle format changes in the future
+# and maintain backward compatibility.
+version: 1
+
+# --- Application Metadata ---
+
+# The full, human-readable name of the application.
+# This will be used for desktop shortcuts, menus, etc.
+app_name: "Visual Studio Code"
+
+# A unique, short name used for the Podman container, images,
+# and internal management by the 'debox' tool.
+# Should only contain lowercase letters, numbers, and dashes.
+container_name: "debox-vscode"
+
+
+# --- Container Image Definition ---
+image:
+  # The base image from a container registry (e.g., Docker Hub, Quay.io).
+  # This is the foundation of the application's environment.
+  base: "debian:latest"
+  
+  # A list of additional APT repositories to be added to the container's sources.
+  # Each item in the list is a dictionary describing a single repository.
+  repositories:
+    - # The URL to the GPG public key for verifying the repository.
+      key_url: "https://packages.microsoft.com/keys/microsoft.asc"
+      key_path: "/etc/apt/keyrings/packages.microsoft.gpg"
+      # The repository string to be added to the APT sources.list file.
+      repo_string: "deb [arch=amd64 signed-by=/etc/apt/keyrings/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main"
+
+  # A list of DEB packages to install using 'apt'.
+  # Dependencies will be handled automatically by apt.
+  packages:
+    - "code"
+    - "git"
+    - "build-essential"
+    - "podman" # The podman client is required to forward the host's Podman socket.
+
+# --- Desktop Integration ---
+export:
+  # The name of the executable binary inside the container.
+  # This is the command that 'debox run' will execute.
+  binary: "code"
+
+  # OPTIONAL: Manually set icon name (without extension).
+  # If omitted, debox will try to automatically detect it from .desktop file.
+  # icon: "vscode"
+
+# --- Runtime Environment Configuration ---
+runtime:
+  # A master switch to enable full desktop integration. If true, 'debox' will
+  # automatically mount sockets for graphics (Wayland/X11), audio (PipeWire),
+  # and the GPU device (/dev/dri) for hardware acceleration.
+  desktop_integration: true
+
+  # A list of additional host directories to mount into the container.
+  # Format: "host_path:container_path".
+  # The isolated home directory is mounted automatically by 'debox'.
+  # Use tilde (~) for the user's home directory on the host.
+  volumes:
+    - "~/Repozytoria:/home/marcin/Repozytoria"

@@ -1,0 +1,56 @@
+# This section defines the build system 'debox' will use.
+# It tells pip and other tools how to build the project from source.
+# 'setuptools' is the standard and most common build backend.
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+# This is the main section containing all the metadata about your project.
+# It replaces the need for an older 'setup.py' file.
+[project]
+# The name of your package as it will appear on PyPI.
+name = "debox"
+# The initial version of your project. Following Semantic Versioning is a good practice.
+version = "0.1.0"
+# Your details as the author.
+authors = [
+  { name = "Your Name", email = "your.email@example.com" },
+]
+# A short, one-sentence description of the project.
+description = "An application container manager for Debian desktops using Podman."
+# A path to the README file for a longer description.
+readme = "README.md"
+# The minimum version of Python required to run 'debox'.
+requires-python = ">=3.8"
+# A path to the license file.
+license = { text = "MIT License" }
+# Standard classifiers to help users find your project on PyPI.
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Environment :: Console",
+    "Topic :: System :: Systems Administration",
+]
+
+# A list of packages required for the project to run.
+# These will be installed automatically by pip when a user installs 'debox'.
+dependencies = [
+    "typer", # For creating a rich command-line interface. '[all]' includes helpful extras.
+    "PyYAML",     # For parsing the .yml configuration files.
+]
+
+# This section is crucial. It creates the command-line entry points.
+[project.scripts]
+# When the package is installed, create a command named 'debox' in the system's PATH
+# that executes the 'app' object from the 'debox.cli' module.
+debox = "debox.cli:app"
+
+# This section defines optional dependencies, useful for development and testing.
+# They are not installed by default for end-users.
+[project.optional-dependencies]
+# To install these, you would run: pip install .[dev]
+dev = [
+    "pytest",
+    "pytest-mock",
+]

@@ -1,0 +1,32 @@
+# version: 1
+
+# --- Application Metadata ---
+app_name: "Firefox ESR"
+container_name: "debox-firefox"
+
+# --- Container Image Definition ---
+image:
+  # We use the same stable Debian base
+  base: "debian:latest"
+  
+  # No external repositories are needed for Firefox ESR
+  repositories:
+
+  # Install Firefox's Extended Support Release and the Polish language pack
+  packages:
+    - "firefox-esr"
+    - "firefox-esr-l10n-pl"
+
+# --- Desktop Integration ---
+export:
+  # The binary name for Firefox ESR
+  binary: "firefox-esr"
+
+# --- Runtime Environment Configuration ---
+runtime:
+  # We need full desktop integration for the browser
+  desktop_integration: true
+
+  # We will mount the host's Downloads directory
+  volumes:
+    - "~/Pobrane:/home/marcin/Pobrane"

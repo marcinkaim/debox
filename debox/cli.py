@@ -1,0 +1,63 @@
+# debox/debox/cli.py
+
+import typer
+from typing_extensions import Annotated
+from pathlib import Path
+
+# Import the modules that will contain the logic for each command.
+# We will create these files in the next steps.
+from .commands import install_cmd, remove_cmd, list_cmd, run_cmd
+
+# Create the main Typer application object.
+# This object will manage all our commands.
+app = typer.Typer(
+    help="A container manager for desktop applications on Debian, powered by Podman."
+)
+
+@app.command()
+def install(
+    # The validation logic (exists=True, etc.) stays inside typer.Argument.
+    config_file: Annotated[Path, 
+                           typer.Argument(exists=True, file_okay=True, dir_okay=False, 
+                                          readable=True, help="Path to the application's .yml configuration file.")]
+):
+    """
+    Builds, creates, and integrates an application from a config file.
+    """
+    install_cmd.install_app(config_file)
+
+@app.command()
+def remove(
+    app_name: Annotated[str, typer.Argument(help="The name of the application to remove (e.g., 'Visual Studio Code'). Use 'debox list' to see installed apps.")],
+    # Add an optional flag to purge the home directory
+    purge_home: Annotated[bool, typer.Option("--purge", help="Also remove the application's isolated home directory.")] = False
+):
+    """
+    Removes an application's container, image, and desktop integration.
+    By default, keeps the isolated home directory unless --purge is used.
+    """
+    # Pass the flag to the backend function
+    remove_cmd.remove_app(app_name, purge_home)
+
+@app.command(name="list") # Use 'name' to avoid conflict with the Python keyword 'list'
+def list_apps():
+    """
+    Lists all installed debox applications and their status.
+    """
+    list_cmd.list_installed_apps()
+
+@app.command()
+def run(
+    app_name: Annotated[str, typer.Argument(help="The name of the application container (e.g., 'debox-vscode').")],
+    # NEW: Capture extra arguments passed after app_name
+    app_args: Annotated[list[str], typer.Argument(help="Arguments to pass to the application inside the container.",
+                                                   hidden=True)] = None # 'hidden=True' hides it from --help
+):
+    """
+    Launches an application inside its container, passing extra arguments.
+    """
+    # Pass the collected arguments to the backend function
+    run_cmd.run_app(app_name, app_args if app_args else [])
+
+if __name__ == "__main__":
+    app()
