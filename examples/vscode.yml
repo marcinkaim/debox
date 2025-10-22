@@ -40,9 +40,13 @@ image:
 
 # --- Desktop Integration ---
 export:
-  # The name of the executable binary inside the container.
-  # This is the command that 'debox run' will execute.
+# The base executable binary name inside the container.
+  # Used for finding .desktop/icons and as the command to run.
   binary: "code"
+  
+  # OPTIONAL: A list of arguments to pass to the binary at runtime.
+  exec_args: 
+    - "--ozone-platform=wayland"
 
   # OPTIONAL: Manually set icon name (without extension).
   # If omitted, debox will try to automatically detect it from .desktop file.

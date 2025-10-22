@@ -1,7 +1,6 @@
 # debox/debox/commands/run_cmd.py
 
 import os
-import shlex # Import shlex
 import getpass
 from debox.core import podman_utils
 from debox.core import config as config_utils
@@ -9,7 +8,8 @@ from debox.core import config as config_utils
 def run_app(container_name: str, app_args: list[str]):
     """
     Ensures the container is running and then executes the main application
-    binary inside it as the correct user, forwarding any extra arguments.
+    binary inside it as the correct user, combining arguments from YAML
+    and the command line.
     """
     try:
         host_user = getpass.getuser()
@@ -21,13 +21,10 @@ def run_app(container_name: str, app_args: list[str]):
             return
 
         config = config_utils.load_config(config_path)
-        # Get the binary command string (e.g., "code --no-sandbox")
-        binary_string = config['export']['binary']
+        # --- Get base binary and YAML args separately ---
+        base_binary = config['export']['binary']
+        yaml_args = config.get('export', {}).get('exec_args', []) # Get list or empty list
         
-        # --- Safely split the binary string into command + args ---
-        # shlex.split handles spaces and quotes correctly
-        binary_parts = shlex.split(binary_string)
-
         print(f"-> Starting container '{container_name}' if not running...")
         podman_utils.run_command(["podman", "start", container_name])
 
@@ -36,12 +33,11 @@ def run_app(container_name: str, app_args: list[str]):
             "podman", "exec",
             "--user", host_user,
             container_name,
+            base_binary
         ]
-        # Append the parts of the binary command (e.g., 'code', '--no-sandbox')
-        exec_command.extend(binary_parts)
-        # Append the extra arguments passed to debox run (e.g., '%u' -> file path)
-        exec_command.extend(app_args)
-        
+        exec_command.extend(yaml_args) # Add args from YAML first
+        exec_command.extend(app_args)  # Add args passed to 'debox run' (like %F)
+
         print(f"-> Executing command: {' '.join(exec_command)}") # For debugging
         # Use subprocess.run directly here, as we want the app to take over the terminal
         # We don't use podman_utils.run_command because it might capture output or check errors

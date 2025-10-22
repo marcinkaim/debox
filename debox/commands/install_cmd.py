@@ -160,7 +160,7 @@ def _export_desktop_file(config: dict):
     preserving their directory structure, and integrates with the host desktop.
     """
     container_name = config['container_name']
-    binary = config['export']['binary']
+    base_binary = config['export']['binary']
     
     try:
         # --- Start the container temporarily ---
@@ -170,7 +170,7 @@ def _export_desktop_file(config: dict):
         original_desktop_content = ""
         try:
             # 1. Find and read the original .desktop file from the container
-            find_cmd = ["podman", "exec", container_name, "find", "/usr/share/applications/", "-name", f"{binary}.desktop"]
+            find_cmd = ["podman", "exec", container_name, "find", "/usr/share/applications/", "-name", f"{base_binary}.desktop"]
             desktop_path_in_container = podman_utils.run_command(find_cmd, capture_output=True).strip()
 
             if not desktop_path_in_container:
@@ -185,8 +185,8 @@ def _export_desktop_file(config: dict):
             # If we can't find the original, we fall back to the old method of generating a basic file
             original_desktop_content = f"""[Desktop Entry]
 Name={config['app_name']}
-Exec={binary}
-Icon={binary}
+Exec={base_binary}
+Icon=application-default-icon
 Type=Application
 """
 
@@ -196,7 +196,7 @@ Type=Application
         parser.read_string(original_desktop_content)
 
         # 3. Determine the icon name with priority
-        icon_name = config.get('export', {}).get('icon') or parser.get('Desktop Entry', 'Icon', fallback=binary)
+        icon_name = config.get('export', {}).get('icon') or parser.get('Desktop Entry', 'Icon', fallback=base_binary)
         print(f"-> Using icon name: '{icon_name}' (will keep this name in the final .desktop)")
 
         # 4. Extract the icon file from the container
