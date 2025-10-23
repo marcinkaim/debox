@@ -12,43 +12,76 @@ import os
 
 def install_app(config_path: Path):
     """
-    Orchestrates the entire application installation process.
+    Orchestrates the entire application installation process,
+    checking first if the application container already exists.
     """
     # 1. Load and validate the configuration
-    config = config_utils.load_config(config_path)
-    container_name = config['container_name']
+    try:
+        config = config_utils.load_config(config_path)
+        container_name = config['container_name']
+    except Exception as e:
+        print(f"Error loading configuration: {e}")
+        return # Exit if config is invalid
+
+    # --- Check if container already exists ---
+    print(f"-> Checking status for container '{container_name}'...")
+    existing_status = podman_utils.get_container_status(container_name)
+
+    if existing_status != "Not Found" and "error" not in existing_status.lower():
+        print(f"❌ Error: Container '{container_name}' already exists (Status: {existing_status}).")
+        print("   If you want to reinstall, please remove the existing application first using:")
+        print(f"   debox remove \"{config.get('app_name', container_name)}\"")
+        return # Exit gracefully
+    elif "error" in existing_status.lower():
+         print(f"Warning: Could not reliably determine status for {container_name}. Proceeding with caution.")
+    else:
+         print(f"-> Container '{container_name}' not found. Proceeding with installation...")
     
-    # 2. Prepare debox directories for the app
+    # 2. Prepare debox directories for the app (this is safe to re-run)
     app_config_dir = config_utils.get_app_config_dir(container_name)
-    shutil.copy(config_path, app_config_dir / "config.yml")
-    print(f"-> Copied config to {app_config_dir}")
-
-    # --- Get host user details ---
-    host_user = getpass.getuser()
-    host_uid = os.getuid()
-
+    try:
+        shutil.copy(config_path, app_config_dir / "config.yml")
+        print(f"-> Copied config to {app_config_dir}")
+    except Exception as e:
+        print(f"Error copying configuration: {e}")
+        return # Exit if copying fails
+    
     # 3. Generate Containerfile and build the image
-    containerfile = _generate_containerfile(config, host_user, host_uid)
-    (app_config_dir / "Containerfile").write_text(containerfile)
-    print("-> Generated Containerfile.")
-    
-    image_tag = f"localhost/{container_name}:latest"
-    # Pass user details as build arguments to podman
-    build_args = {
-        "HOST_USER": host_user,
-        "HOST_UID": str(host_uid),
-    }
-    podman_utils.build_image(containerfile, image_tag, build_args)
-    print(f"-> Successfully built image '{image_tag}'")
-    
+    try:
+        host_user = getpass.getuser()
+        host_uid = os.getuid()
+        containerfile = _generate_containerfile(config, host_user, host_uid)
+        (app_config_dir / "Containerfile").write_text(containerfile)
+        print("-> Generated Containerfile.")
+        
+        image_tag = f"localhost/{container_name}:latest"
+        build_args = {"HOST_USER": host_user, "HOST_UID": str(host_uid)}
+        podman_utils.build_image(containerfile, image_tag, build_args)
+        print(f"-> Successfully built image '{image_tag}'")
+    except Exception as e:
+        print(f"Error building image: {e}")
+        # Attempt cleanup? Maybe just exit for now.
+        return
+        
     # 4. Generate podman flags and create the container
-    podman_flags = _generate_podman_flags(config)
-    podman_utils.create_container(container_name, image_tag, podman_flags)
-    print(f"-> Successfully created container '{container_name}'")
-    
+    try:
+        podman_flags = _generate_podman_flags(config)
+        podman_utils.create_container(container_name, image_tag, podman_flags)
+        print(f"-> Successfully created container '{container_name}'")
+    except Exception as e:
+         print(f"Error creating container: {e}")
+         # Attempt cleanup? Maybe just exit for now.
+         return
+
     # 5. Export the .desktop file for desktop integration
-    _export_desktop_file(config)
-    print(f"-> Successfully exported desktop file for '{config['app_name']}'")
+    try:
+        _export_desktop_file(config)
+        # The success message is now inside _export_desktop_file
+    except Exception as e:
+         print(f"Error exporting desktop file: {e}")
+         # Attempt cleanup? Maybe just exit for now.
+         return
+
     print("\n✅ Installation complete!")
 
 def _generate_containerfile(config: dict, host_user: str, host_uid: int) -> str:
@@ -268,6 +301,8 @@ def _export_desktop_file(config: dict):
         # 9. Update the desktop database
         print("-> Updating desktop application database...")
         podman_utils.run_command(["update-desktop-database", str(config_utils.DESKTOP_FILES_DIR)])
+        
+        print(f"-> Successfully exported desktop file for '{config['app_name']}'")
 
     finally:
         # --- Always stop the container afterward ---
