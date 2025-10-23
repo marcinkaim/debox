@@ -48,9 +48,12 @@ export:
   exec_args: 
     - "--ozone-platform=wayland"
 
-  # OPTIONAL: Manually set icon name (without extension).
-  # If omitted, debox will try to automatically detect it from .desktop file.
-  # icon: "vscode"
+# OPTIONAL: A list of icon names (without extension) to export.
+  # If omitted, debox tries to get the icon name from the original .desktop file,
+  # or falls back to the 'binary' name.
+  # icons: 
+  #   - "vscode" # You could add more here if needed, e.g., "vscode-insiders"
+    # - "another-icon-name"
 
 # --- Runtime Environment Configuration ---
 runtime:

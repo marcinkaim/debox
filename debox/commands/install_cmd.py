@@ -155,98 +155,75 @@ def _generate_podman_flags(config: dict) -> list[str]:
 
 def _export_desktop_file(config: dict):
     """
-    Temporarily starts the container to find the original .desktop file,
-    intelligently modifies its Exec lines, copies ALL associated icons 
-    preserving their directory structure, and integrates with the host desktop.
+    Temporarily starts the container, finds/parses the .desktop file,
+    determines ALL icon names (from YAML or ALL .desktop sections),
+    calls _export_icons, modifies Exec lines, sets the corresponding
+    prefixed icon name in EACH section of the final .desktop file,
+    and integrates with the host desktop.
     """
     container_name = config['container_name']
-    base_binary = config['export']['binary']
+    binary = config['export']['binary']
     
     try:
         # --- Start the container temporarily ---
         print("-> Temporarily starting container to extract files...")
         podman_utils.run_command(["podman", "start", container_name])
 
+        # --- Find and parse the original .desktop file ---
         original_desktop_content = ""
+        desktop_path_in_container = ""
         try:
-            # 1. Find and read the original .desktop file from the container
-            find_cmd = ["podman", "exec", container_name, "find", "/usr/share/applications/", "-name", f"{base_binary}.desktop"]
-            desktop_path_in_container = podman_utils.run_command(find_cmd, capture_output=True).strip()
-
-            if not desktop_path_in_container:
-                raise FileNotFoundError("Original .desktop file not found in container.")
-
+            find_cmd = ["podman", "exec", container_name, "find", "/usr/share/applications/", "/usr/local/share/applications/", "-name", f"{binary}.desktop"]
+            process = subprocess.run(find_cmd, capture_output=True, text=True, check=False)
+            found_desktops = process.stdout.strip().splitlines()
+            
+            if process.returncode != 0 and not found_desktops: raise FileNotFoundError(f"find failed: {process.stderr}")
+            if not found_desktops: raise FileNotFoundError("Original .desktop not found.")
+            
+            desktop_path_in_container = found_desktops[0]
             cat_cmd = ["podman", "exec", container_name, "cat", desktop_path_in_container]
             original_desktop_content = podman_utils.run_command(cat_cmd, capture_output=True)
             print(f"-> Found original .desktop file at: {desktop_path_in_container}")
 
         except Exception as e:
-            print(f"-> Warning: Could not find or read original .desktop file. Will generate a basic one. Error: {e}")
-            # If we can't find the original, we fall back to the old method of generating a basic file
-            original_desktop_content = f"""[Desktop Entry]
-Name={config['app_name']}
-Exec={base_binary}
-Icon=application-default-icon
-Type=Application
-"""
+            print(f"-> Warning: Could not find original .desktop file. Generating basic. Error: {e}")
+            original_desktop_content = f"[Desktop Entry]\nName={config['app_name']}\nExec={binary}\nIcon={binary}\nType=Application"
 
-        # 2. Parse the .desktop content to extract information
+        # Parse the .desktop content to extract information
         parser = configparser.ConfigParser(interpolation=None)
         parser.optionxform = str
         parser.read_string(original_desktop_content)
 
-        # 3. Determine the icon name with priority
-        icon_name = config.get('export', {}).get('icon') or parser.get('Desktop Entry', 'Icon', fallback=base_binary)
-        print(f"-> Using icon name: '{icon_name}' (will keep this name in the final .desktop)")
+        # --- Determine the LIST of ALL unique icon names ---
+        icon_names_to_export = set() # Use a set to automatically handle duplicates
 
-        # 4. Extract the icon file from the container
-        icons_copied_count = 0
-        try:
-            # Search only in standard icon directories
-            find_icon_cmd = ["podman", "exec", container_name, "find", "/usr/share/icons/", "/usr/share/pixmaps/", "-name", f"{icon_name}.*"]
-            # Again, use check=False and capture output
-            process_icons = subprocess.run(find_icon_cmd, capture_output=True, text=True, check=False)
-            found_icons = process_icons.stdout.strip().splitlines()
+        # Priority 1: Use the list from YAML if provided and not empty
+        yaml_icons = config.get('export', {}).get('icons', [])
+        if yaml_icons:
+            icon_names_to_export.update(yaml_icons) # Add all icons from YAML
+            print(f"-> Using icon names specified in YAML: {list(icon_names_to_export)}")
+        else:
+            # Priority 2: Scan ALL sections of the .desktop file for 'Icon=' keys
+            print("-> Scanning .desktop file for icon names...")
+            for section_name in parser.sections():
+                icon_in_section = parser.get(section_name, 'Icon', fallback=None)
+                if icon_in_section:
+                    icon_names_to_export.add(icon_in_section) # Add unique icon names
 
-            if process_icons.returncode != 0 and not found_icons:
-                raise FileNotFoundError(f"find command for icons failed: {process_icons.stderr}")
-            if not found_icons:
-                 raise FileNotFoundError(f"Icon files for '{icon_name}' not found.")
-
-            print(f"-> Found {len(found_icons)} icon file(s) for '{icon_name}'. Copying...")
-            
-            for icon_path_in_container in found_icons:
-                icon_path = Path(icon_path_in_container)
-                
-                # Determine the relative path and corresponding host path
-                if icon_path.is_relative_to("/usr/share/icons"):
-                    relative_path = icon_path.relative_to("/usr/share/icons")
-                    host_dest_path = Path(os.path.expanduser("~/.local/share/icons")) / relative_path
-                elif icon_path.is_relative_to("/usr/share/pixmaps"):
-                    relative_path = icon_path.relative_to("/usr/share/pixmaps")
-                    host_dest_path = Path(os.path.expanduser("~/.local/share/pixmaps")) / relative_path
-                else:
-                    print(f"-> Warning: Skipping icon with unknown base path: {icon_path}")
-                    continue
-                
-                # Create parent directories on the host
-                host_dest_path.parent.mkdir(parents=True, exist_ok=True)
-                
-                # Copy the icon file
-                cp_cmd = ["podman", "cp", f"{container_name}:{icon_path_in_container}", str(host_dest_path)]
-                podman_utils.run_command(cp_cmd)
-                icons_copied_count += 1
-            
-            if icons_copied_count > 0:
-                 print(f"-> Successfully copied {icons_copied_count} icon file(s).")
+            if icon_names_to_export:
+                print(f"-> Found icon names in .desktop file: {list(icon_names_to_export)}")
             else:
-                 print("-> Warning: No icons were successfully copied.")
+                 # Priority 3: Fallback to a standard default icon name
+                 print(f"-> No icons found in YAML or .desktop. Falling back to default.")
+                 icon_names_to_export.add("application-default-icon") # Use a generic fallback
 
-        except Exception as e:
-            print(f"-> Warning: Failed during icon extraction. Error: {e}")
+        # Convert set back to list for the export function
+        final_icon_list = list(icon_names_to_export)
 
+        # --- Call the dedicated icon export function with the full list ---
+        icons_were_copied = _export_icons(container_name, final_icon_list)
 
-        # 5. Iterate over ALL sections in the .desktop file
+        # --- Modify ALL relevant sections in the parser ---
         for section_name in parser.sections():
             section = parser[section_name]
             
@@ -257,23 +234,36 @@ Type=Application
                 # Replace only the main command, keeping all arguments (%F, --new-window, etc.)
                 exec_parts[0] = f"debox run {container_name}"
                 section['Exec'] = " ".join(exec_parts)
-            
-        # 6. Modify the main entry's Name to distinguish it
+
+            # --- Prefix the Icon name IN THIS SPECIFIC SECTION ---
+            # Use the icon name originally found in this section
+            original_icon_name_in_section = parser.get(section_name, 'Icon', fallback=None)
+            if original_icon_name_in_section:
+                 # Create the prefixed name for *this specific icon*
+                 prefixed_icon_name = f"{container_name}_{original_icon_name_in_section}"
+                 section['Icon'] = prefixed_icon_name
+            elif section_name == 'Desktop Entry' and final_icon_list:
+                 # If main entry had no icon, use the first one from our list (prefixed)
+                 section['Icon'] = f"{container_name}_{final_icon_list[0]}"
+
+        # Modify the main entry's Name
         if 'Desktop Entry' in parser:
             main_section = parser['Desktop Entry']
-            main_section['Name'] = f"{main_section.get('Name', config['app_name'])} (Debox)"
+            main_section['Name'] = f"{main_section.get('Name', config['app_name'])} ({container_name})"
 
-        # 7. Write the final .desktop file
+        # --- Write the final .desktop file ---
         final_desktop_path = config_utils.DESKTOP_FILES_DIR / f"{container_name}.desktop"
         with open(final_desktop_path, 'w') as f:
             parser.write(f, space_around_delimiters=False)
         print(f"-> Created modified desktop file at {final_desktop_path}")
         
-        # 8. Update icon cache only if icons were copied
-        if icons_copied_count > 0:
+        # --- Update icon cache and desktop database ---
+        if icons_were_copied:
              print("-> Updating icon cache...")
-             # Force update for user's icon themes
-             podman_utils.run_command(["gtk-update-icon-cache", "-f", "-t", str(Path(os.path.expanduser("~/.local/share/icons")))])
+             try: # Add try-except for robustness
+                 podman_utils.run_command(["gtk-update-icon-cache", "-f", "-t", str(Path(os.path.expanduser("~/.local/share/icons")))])
+             except Exception as cache_e:
+                  print(f"Warning: Failed to update icon cache: {cache_e}")
 
         # 9. Update the desktop database
         print("-> Updating desktop application database...")
@@ -283,3 +273,79 @@ Type=Application
         # --- Always stop the container afterward ---
         print("-> Stopping temporary container...")
         podman_utils.run_command(["podman", "stop", "--time", "2", container_name])
+
+def _export_icons(container_name: str, icon_names: list[str]) -> bool:
+    """
+    Finds icon files inside the container for a list of base names,
+    copies them to the corresponding user directories on the host,
+    prefixing the filename with the container name.
+
+    Args:
+        container_name: The name of the container (e.g., 'debox-firefox').
+        icon_names: A list of base icon names to search for (e.g., ['firefox-esr']).
+
+    Returns:
+        True if at least one icon was successfully copied, False otherwise.
+    """
+    icons_copied_count = 0
+    print(f"-> Starting icon export for names: {icon_names}")
+
+    for icon_name in icon_names:
+        if not icon_name: # Skip empty names
+            continue
+        print(f"--> Searching for icons matching '{icon_name}.*'...")
+        try:
+            # Search only in standard icon directories
+            find_icon_cmd = ["podman", "exec", container_name, "find", "/usr/share/icons/", "/usr/share/pixmaps/", "-name", f"{icon_name}.*"]
+            process_icons = subprocess.run(find_icon_cmd, capture_output=True, text=True, check=False)
+            found_icons = process_icons.stdout.strip().splitlines()
+
+            if process_icons.returncode != 0 and not found_icons:
+                print(f"--> Warning: 'find' command failed for icons named '{icon_name}': {process_icons.stderr}")
+                continue # Try next icon name
+            if not found_icons:
+                 print(f"--> No icon files found for '{icon_name}'.")
+                 continue # Try next icon name
+
+            print(f"--> Found {len(found_icons)} icon file(s) for '{icon_name}'. Copying with prefix...")
+            
+            for icon_path_in_container in found_icons:
+                try:
+                    icon_path_cont = Path(icon_path_in_container)
+                    icon_extension = icon_path_cont.suffix.lower()
+                    
+                    # --- Determine destination directory ---
+                    if icon_path_cont.is_relative_to("/usr/share/icons"):
+                        relative_path = icon_path_cont.relative_to("/usr/share/icons")
+                        host_dest_dir = Path(os.path.expanduser("~/.local/share/icons")) / relative_path.parent
+                    elif icon_path_cont.is_relative_to("/usr/share/pixmaps"):
+                        # For pixmaps, place directly in user's pixmaps, no subdirs needed from relative_path
+                        host_dest_dir = Path(os.path.expanduser("~/.local/share/pixmaps"))
+                    else:
+                        print(f"--> Warning: Skipping icon with unknown base path: {icon_path_cont}")
+                        continue
+                    
+                    host_dest_dir.mkdir(parents=True, exist_ok=True)
+                    
+                    # --- Create the new prefixed filename ---
+                    # e.g., debox-firefox_firefox-esr.png
+                    new_icon_filename = f"{container_name}_{icon_name}{icon_extension}"
+                    icon_path_on_host = host_dest_dir / new_icon_filename
+                    
+                    # --- Copy the icon ---
+                    cp_cmd = ["podman", "cp", f"{container_name}:{icon_path_in_container}", str(icon_path_on_host)]
+                    podman_utils.run_command(cp_cmd)
+                    print(f"    Copied: {icon_path_in_container} -> {icon_path_on_host}")
+                    icons_copied_count += 1
+                except Exception as copy_e:
+                     print(f"--> Error copying icon {icon_path_in_container}: {copy_e}")
+
+        except Exception as find_e:
+            print(f"--> Error finding icons for '{icon_name}': {find_e}")
+
+    if icons_copied_count > 0:
+         print(f"-> Successfully copied {icons_copied_count} total icon file(s).")
+         return True
+    else:
+         print("-> Warning: No icons were successfully copied.")
+         return False

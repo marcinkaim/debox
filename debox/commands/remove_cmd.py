@@ -79,46 +79,52 @@ def remove_app(app_name_to_remove: str, purge_home: bool):
             podman_utils.run_command(["update-desktop-database", str(config_utils.DESKTOP_FILES_DIR)])
         else:
             print(f"-> Desktop file not found: {desktop_file_path}") # More specific message
-
-            # --- ICON REMOVAL ---
-            # Get the original icon name used during install
-            # We need to re-parse the original .desktop file briefly or get it from config
-            # Let's get it from the config first, falling back to binary name
-            icon_name = found_config.get('export', {}).get('icon') or found_config.get('export', {}).get('binary') or container_name
-            print(f"-> Searching for icon files named '{icon_name}.*' to remove...")
+ 
+        # --- ICON REMOVAL LOGIC (Search by Prefix) ---
+        try:
+            # --- Search for files starting with the container name prefix ---
+            icon_prefix_pattern = f"{container_name}_*.*" 
+            print(f"-> Searching for icon files starting with '{container_name}_' to remove...")
 
             icon_removed_count = 0
-            # Define standard user icon/pixmap directories
             user_icon_dir = Path(os.path.expanduser("~/.local/share/icons"))
             user_pixmap_dir = Path(os.path.expanduser("~/.local/share/pixmaps"))
 
-            # Search recursively in user icons dir
+            # Search recursively in user icons dir for the prefix pattern
             if user_icon_dir.is_dir():
-                # Use rglob to search recursively
-                for icon_path in user_icon_dir.rglob(f"{icon_name}.*"):
+                for icon_path in user_icon_dir.rglob(icon_prefix_pattern): 
                     if icon_path.is_file():
                         print(f"--> Found and removing icon: {icon_path}")
-                        icon_path.unlink()
-                        icon_removed_count += 1
+                        try:
+                            icon_path.unlink()
+                            icon_removed_count += 1
+                        except OSError as e:
+                            print(f"--> Warning: Could not remove icon {icon_path}: {e}")
             
-            # Search directly in user pixmaps dir
+            # Search directly in user pixmaps dir for the prefix pattern
             if user_pixmap_dir.is_dir():
-                 for icon_path in user_pixmap_dir.glob(f"{icon_name}.*"):
+                 for icon_path in user_pixmap_dir.glob(icon_prefix_pattern): 
                      if icon_path.is_file():
                          print(f"--> Found and removing icon: {icon_path}")
-                         icon_path.unlink()
-                         icon_removed_count += 1
+                         try:
+                             icon_path.unlink()
+                             icon_removed_count += 1
+                         except OSError as e:
+                             print(f"--> Warning: Could not remove icon {icon_path}: {e}")
 
             if icon_removed_count > 0:
-                print(f"-> Removed {icon_removed_count} icon file(s) named '{icon_name}.*'.")
+                print(f"-> Removed {icon_removed_count} icon file(s) associated with '{container_name}'.")
                 print("-> Updating icon cache...")
                 try:
-                    # Update cache for the user's icon directory
                     podman_utils.run_command(["gtk-update-icon-cache", "-f", "-t", str(user_icon_dir)])
                 except Exception as cache_e:
                      print(f"Warning: Failed to update icon cache: {cache_e}")
             else:
-                print(f"-> No icon files named '{icon_name}.*' found in user directories.")
+                # Use the correct pattern in the warning message
+                print(f"-> No icon files starting with '{container_name}_' found in user directories.")
+
+        except Exception as e:
+            print(f"Warning: Error during icon cleanup for {container_name}: {e}")
 
     except Exception as e:
         print(f"Warning: Error during desktop integration cleanup for {container_name}: {e}")
