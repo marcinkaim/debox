@@ -1,7 +1,6 @@
 # debox/commands/install_cmd.py
 
 from pathlib import Path
-import os
 import shutil
 import configparser
 import subprocess
@@ -9,11 +8,13 @@ from debox.core import config as config_utils
 from debox.core import podman_utils
 import getpass
 import os
+import locale
 
 def install_app(config_path: Path):
     """
     Orchestrates the entire application installation process,
-    checking first if the application container already exists.
+    checking first if the application container already exists,
+    and setting the container locale to match the host.
     """
     # 1. Load and validate the configuration
     try:
@@ -46,16 +47,33 @@ def install_app(config_path: Path):
         print(f"Error copying configuration: {e}")
         return # Exit if copying fails
     
+    # --- Get host user details AND locale ---
+    host_user = getpass.getuser()
+    host_uid = os.getuid()
+    try:
+        # Get the host's default locale (e.g., 'pl_PL.UTF-8')
+        host_locale = locale.getlocale(locale.LC_CTYPE)[0] + '.' + locale.getlocale(locale.LC_CTYPE)[1]
+        if not host_locale or '.' not in host_locale: # Fallback if detection fails
+             print("Warning: Could not detect host locale, defaulting to C.UTF-8")
+             host_locale = "C.UTF-8"
+    except Exception as e:
+         print(f"Warning: Error detecting host locale ({e}), defaulting to C.UTF-8")
+         host_locale = "C.UTF-8"
+
+    print(f"-> Using host locale: {host_locale}")
+    
     # 3. Generate Containerfile and build the image
     try:
-        host_user = getpass.getuser()
-        host_uid = os.getuid()
-        containerfile = _generate_containerfile(config, host_user, host_uid)
+        containerfile = _generate_containerfile(config, host_user, host_uid, host_locale)
         (app_config_dir / "Containerfile").write_text(containerfile)
         print("-> Generated Containerfile.")
         
         image_tag = f"localhost/{container_name}:latest"
-        build_args = {"HOST_USER": host_user, "HOST_UID": str(host_uid)}
+        build_args = {
+            "HOST_USER": host_user,
+            "HOST_UID": str(host_uid),
+            "HOST_LOCALE": host_locale,
+        }
         podman_utils.build_image(containerfile, image_tag, build_args)
         print(f"-> Successfully built image '{image_tag}'")
     except Exception as e:
@@ -84,7 +102,7 @@ def install_app(config_path: Path):
 
     print("\n✅ Installation complete!")
 
-def _generate_containerfile(config: dict, host_user: str, host_uid: int) -> str:
+def _generate_containerfile(config: dict, host_user: str, host_uid: int, host_locale: str) -> str:
     """
     Generates the content of the Containerfile based on the YAML config.
     """
@@ -93,12 +111,21 @@ def _generate_containerfile(config: dict, host_user: str, host_uid: int) -> str:
     # --- Add arguments for user creation ---
     lines.append(f"ARG HOST_USER={host_user}")
     lines.append(f"ARG HOST_UID={host_uid}")
+    lines.append(f"ARG HOST_LOCALE={host_locale}") # Define locale arg
 
     # Add environment variable to prevent interactive prompts during package installation
     lines.append("ENV DEBIAN_FRONTEND=noninteractive")
     
     # Pre-install dependencies for adding repositories
-    lines.append("RUN apt-get update && apt-get install -y wget gpg sudo")
+    lines.append("RUN apt-get update && apt-get install -y wget gpg sudo locales")
+
+    # --- Locale generation and configuration ---
+    # Configure locales package - uncomment the desired locale in the config file
+    lines.append(f"RUN sed -i -e 's/# $HOST_LOCALE UTF-8/$HOST_LOCALE UTF-8/' /etc/locale.gen")
+    # Generate the locale
+    lines.append(f"RUN dpkg-reconfigure --frontend=noninteractive locales")
+    # Set the generated locale as the default LANG environment variable
+    lines.append(f"ENV LANG=$HOST_LOCALE")
     
     # Handle repositories
     if config['image'].get('repositories'):
