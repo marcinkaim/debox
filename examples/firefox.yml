@@ -16,6 +16,7 @@ image:
   packages:
     - "firefox-esr"
     - "firefox-esr-l10n-pl"
+    - "libpulse0"
 
 # --- Desktop Integration ---
 export:
