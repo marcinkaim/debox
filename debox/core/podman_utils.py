@@ -3,6 +3,7 @@
 import subprocess
 import json
 from typing import Optional, Dict
+from pathlib import Path
 
 def run_command(command: list[str], input_str: str = None, capture_output: bool = False, check: bool = True):
     """
@@ -21,9 +22,10 @@ def run_command(command: list[str], input_str: str = None, capture_output: bool 
         return process.stdout.strip()
     return None
 
-def build_image(containerfile_content: str, tag: str, build_args: Optional[Dict[str, str]] = None):
+def build_image(containerfile_content: str, tag: str, context_dir: Path, build_args: Optional[Dict[str, str]] = None):
     """
-    Builds a container image from a Containerfile string.
+    Builds a container image from a Containerfile string, using a specified
+    directory as the build context.
     """
     command = ["podman", "build", "-f", "-", "-t", tag]
     
@@ -31,18 +33,17 @@ def build_image(containerfile_content: str, tag: str, build_args: Optional[Dict[
     if build_args:
         for key, value in build_args.items():
             command.extend(["--build-arg", f"{key}={value}"])
-            
+
+    # Append the context directory path as the last argument
+    command.append(str(context_dir))
+
     run_command(command, input_str=containerfile_content)
 
 def create_container(name: str, image_tag: str, flags: list[str]):
     """
     Creates a container from a built image with the specified flags.
-    The container is given a long-running command to keep it alive.
     """
-    # Append the command that will keep the container running indefinitely
-    command_to_run = ["sleep", "infinity"]
-    
-    command = ["podman", "create", "--name", name] + flags + [image_tag] + command_to_run
+    command = ["podman", "create", "--name", name] + flags + [image_tag]
     run_command(command)
 
 def get_container_status(container_name: str) -> str:

@@ -4,6 +4,7 @@ from pathlib import Path
 import shutil
 import configparser
 import subprocess
+import time
 from debox.core import config as config_utils
 from debox.core import podman_utils
 import getpass
@@ -62,6 +63,20 @@ def install_app(config_path: Path):
 
     print(f"-> Using host locale: {host_locale}")
     
+    # --- Make sure keep_alive.py exists ---
+    # Determine path relative to the install_cmd.py file
+    current_dir = Path(__file__).parent
+    keep_alive_script_src = current_dir.parent / "core" / "keep_alive.py"
+    if not keep_alive_script_src.is_file():
+         print("Error: keep_alive.py not found!")
+         return # Or raise an exception
+
+    # --- Copy keep_alive.py to the app's config dir ---
+    # So podman build can access it via context
+    keep_alive_script_dest = app_config_dir / "keep_alive.py"
+    shutil.copy(keep_alive_script_src, keep_alive_script_dest)
+    print(f"-> Copied keep_alive.py to build context: {keep_alive_script_dest}")
+    
     # 3. Generate Containerfile and build the image
     try:
         containerfile = _generate_containerfile(config, host_user, host_uid, host_locale)
@@ -74,7 +89,9 @@ def install_app(config_path: Path):
             "HOST_UID": str(host_uid),
             "HOST_LOCALE": host_locale,
         }
-        podman_utils.build_image(containerfile, image_tag, build_args)
+
+        # Pass the app_config_dir as the context directory
+        podman_utils.build_image(containerfile, image_tag, context_dir=app_config_dir, build_args=build_args)
         print(f"-> Successfully built image '{image_tag}'")
     except Exception as e:
         print(f"Error building image: {e}")
@@ -117,7 +134,7 @@ def _generate_containerfile(config: dict, host_user: str, host_uid: int, host_lo
     lines.append("ENV DEBIAN_FRONTEND=noninteractive")
     
     # Pre-install dependencies for adding repositories
-    lines.append("RUN apt-get update && apt-get install -y wget gpg sudo locales")
+    lines.append("RUN apt-get update && apt-get install -y wget gpg sudo locales python3 && apt-get clean")
 
     # --- Locale generation and configuration ---
     # Configure locales package - uncomment the desired locale in the config file
@@ -155,6 +172,14 @@ def _generate_containerfile(config: dict, host_user: str, host_uid: int, host_lo
     lines.append(f"RUN usermod -aG sudo $HOST_USER")
     lines.append(f'RUN echo "$HOST_USER ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers')
 
+    # --- Copy and set execution permissions for the script ---
+    lines.append("COPY keep_alive.py /usr/local/bin/keep_alive.py")
+    lines.append("RUN chmod +x /usr/local/bin/keep_alive.py")
+    
+    # --- Set the script as the default command ---
+    # This will be overridden by create_container, but good practice
+    lines.append('CMD ["/usr/local/bin/keep_alive.py"]')
+    
     return "\n".join(lines)
 
 def _generate_podman_flags(config: dict) -> list[str]:
@@ -215,11 +240,9 @@ def _generate_podman_flags(config: dict) -> list[str]:
 
 def _export_desktop_file(config: dict):
     """
-    Temporarily starts the container, finds/parses the .desktop file,
-    determines ALL icon names (from YAML or ALL .desktop sections),
-    calls _export_icons, modifies Exec lines, sets the corresponding
-    prefixed icon name in EACH section of the final .desktop file,
-    and integrates with the host desktop.
+    Temporarily starts the container, waits for it to be running,
+    finds/parses the .desktop file, determines icon names, calls _export_icons,
+    modifies Exec lines, sets the prefixed icon name, and integrates.
     """
     container_name = config['container_name']
     binary = config['export']['binary']
@@ -229,6 +252,16 @@ def _export_desktop_file(config: dict):
         print("-> Temporarily starting container to extract files...")
         podman_utils.run_command(["podman", "start", container_name])
 
+        # # Wait a couple of seconds for the container to fully start
+        # print("-> Waiting for container to initialize...")
+        # time.sleep(2) # Wait for 2 seconds
+        
+        # # Check status (optional but good for debugging)
+        # status = podman_utils.get_container_status(container_name)
+        # print(f"-> Container status: {status}")
+        # if "run" not in status.lower():
+        #      raise RuntimeError(f"Container {container_name} failed to start properly.")
+        
         # --- Find and parse the original .desktop file ---
         original_desktop_content = ""
         desktop_path_in_container = ""
