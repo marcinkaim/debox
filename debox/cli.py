@@ -28,8 +28,7 @@ def install(
 
 @app.command()
 def remove(
-    app_name: Annotated[str, typer.Argument(help="The name of the application to remove (e.g., 'Visual Studio Code'). Use 'debox list' to see installed apps.")],
-    # Add an optional flag to purge the home directory
+    container_name: Annotated[str, typer.Argument(help="The unique container name to remove (e.g., 'debox-firefox'). Use 'debox list' to see names.")],
     purge_home: Annotated[bool, typer.Option("--purge", help="Also remove the application's isolated home directory.")] = False
 ):
     """
@@ -37,7 +36,7 @@ def remove(
     By default, keeps the isolated home directory unless --purge is used.
     """
     # Pass the flag to the backend function
-    remove_cmd.remove_app(app_name, purge_home)
+    remove_cmd.remove_app(container_name, purge_home)
 
 @app.command(name="list") # Use 'name' to avoid conflict with the Python keyword 'list'
 def list_apps():

@@ -8,48 +8,29 @@ import glob # For finding icon files with different extensions
 from debox.core import config as config_utils
 from debox.core import podman_utils
 
-def remove_app(app_name_to_remove: str, purge_home: bool):
+def remove_app(container_name: str, purge_home: bool):
     """
-    Finds and removes all components of a debox application.
+    Finds and removes all components of a debox application,
+    identified by its unique container name.
     """
-    print(f"--- Removing application: {app_name_to_remove} ---")
-    
-    config_path = None
-    container_name = None
-    
+    print(f"--- Removing application associated with container: {container_name} ---")
+
     # --- Find the application's configuration ---
-    if not config_utils.DEBOX_APPS_DIR.is_dir():
-        print("Error: Debox configuration directory not found. No apps installed?")
+    app_config_dir = config_utils.get_app_config_dir(container_name, create=False)
+    config_path = app_config_dir / "config.yml"
+    config = None # Initialize config to None
+
+    if not app_config_dir.is_dir() or not config_path.is_file():
+        print(f"Error: Configuration directory or file not found for '{container_name}'.")
+        # Optionally, try cleanup anyway based just on container_name?
+        # For now, we exit if config is missing.
         return
-
-    found_config = None
-    for app_dir in config_utils.DEBOX_APPS_DIR.iterdir():
-        if not app_dir.is_dir():
-            continue
-        
-        current_config_path = app_dir / "config.yml"
-        if current_config_path.is_file():
-            try:
-                config = config_utils.load_config(current_config_path)
-                current_app_name = config.get('app_name', 'N/A') # Get name from config
-                print(f"DEBUG: Checking config for app '{current_app_name}'...") # DEBUG line
-                # Compare case-insensitively for user convenience
-                if config.get('app_name', '').lower() == app_name_to_remove.lower():
-                    print(f"DEBUG: Match found!") # DEBUG line
-                    found_config = config
-                    config_path = current_config_path
-                    container_name = config.get('container_name')
-                    break # Found the app, stop searching
-            except Exception as e:
-                print(f"Warning: Skipping invalid config file {current_config_path}: {e}")
-                
-    if not found_config or not container_name:
-        print(f"DEBUG: No config found for '{app_name_to_remove}'. Searched {config_utils.DEBOX_APPS_DIR}") # DEBUG line
-        print(f"Error: Application '{app_name_to_remove}' not found in debox configuration.")
-        return
-
-    print(f"-> Found configuration for '{container_name}' at {config_path}")
-
+    
+    try:
+        config = config_utils.load_config(config_path)
+        print(f"-> Found configuration for '{container_name}' at {config_path}")
+    except Exception as e:
+        print(f"Warning: Could not load configuration file {config_path}. Proceeding with cleanup based on name only. Error: {e}")
     # --- Remove Podman resources ---
     try:
         print(f"-> Stopping container '{container_name}' (if running)...")
@@ -152,4 +133,4 @@ def remove_app(app_name_to_remove: str, purge_home: bool):
     else:
         print(f"-> Keeping isolated home directory (use --purge to remove): {config_utils.get_app_home_dir(container_name, create=False)}")
         
-    print(f"\n✅ Removal of '{app_name_to_remove}' complete.")
+    print(f"\n✅ Removal associated with '{container_name}' complete.")
