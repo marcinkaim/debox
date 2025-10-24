@@ -1,15 +1,15 @@
 # debox/debox/commands/run_cmd.py
 
-import os
 import getpass
 from debox.core import podman_utils
 from debox.core import config as config_utils
+import subprocess
 
 def run_app(container_name: str, app_args: list[str]):
     """
-    Ensures the container is running and then executes the main application
-    binary inside it as the correct user, combining arguments from YAML
-    and the command line.
+    Ensures the container is running, executes the main application
+    binary inside it, waits for the application to exit, and then
+    stops the container.
     """
     try:
         host_user = getpass.getuser()
@@ -39,11 +39,22 @@ def run_app(container_name: str, app_args: list[str]):
         exec_command.extend(app_args)  # Add args passed to 'debox run' (like %F)
 
         print(f"-> Executing command: {' '.join(exec_command)}") # For debugging
-        # Use subprocess.run directly here, as we want the app to take over the terminal
-        # We don't use podman_utils.run_command because it might capture output or check errors
-        # in a way that interferes with the launched GUI app.
-        import subprocess
-        subprocess.run(exec_command, check=False) # Use check=False
+
+        # --- Run the application and WAIT for it to exit ---
+        app_process = subprocess.run(exec_command, check=False) 
+        print(f"-> Application exited with code: {app_process.returncode}")
+
+        # --- NEW: Stop the container after the app exits ---
+        print(f"-> Stopping container '{container_name}'...")
+        # Use the utility function which already includes the short timeout
+        podman_utils.run_command(["podman", "stop", "--time=2", container_name]) 
+        print(f"-> Container '{container_name}' stopped.")
 
     except Exception as e:
         print(f"An error occurred while trying to run the application: {e}")
+        # Optionally, try to stop the container even if exec failed
+        try:
+            print(f"-> Attempting to stop container '{container_name}' after error...")
+            podman_utils.run_command(["podman", "stop", "--ignore", "--time=2", container_name])
+        except Exception as stop_e:
+            print(f"-> Error stopping container after previous error: {stop_e}")
