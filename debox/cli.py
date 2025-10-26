@@ -48,7 +48,7 @@ def list_apps():
 @app.command()
 def run(
     app_name: Annotated[str, typer.Argument(help="The name of the application container (e.g., 'debox-vscode').")],
-    # NEW: Capture extra arguments passed after app_name
+    # Capture extra arguments passed after app_name
     app_args: Annotated[list[str], typer.Argument(help="Arguments to pass to the application inside the container.",
                                                    hidden=True)] = None # 'hidden=True' hides it from --help
 ):

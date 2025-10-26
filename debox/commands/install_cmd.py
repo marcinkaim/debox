@@ -110,13 +110,16 @@ def install_app(config_path: Path):
          return
 
     # 5. Export the .desktop file for desktop integration
-    try:
-        _export_desktop_file(config)
-        # The success message is now inside _export_desktop_file
-    except Exception as e:
-         print(f"Error exporting desktop file: {e}")
-         # Attempt cleanup? Maybe just exit for now.
-         return
+    if config.get('runtime', {}).get('desktop_integration', True):
+        print("-> Desktop integration enabled. Exporting desktop file and icons...")
+        try:
+            _export_desktop_file(config) 
+            # Success message is now inside _export_desktop_file if it runs
+        except Exception as e:
+             print(f"Error during desktop integration export: {e}")
+             return
+    else:
+        print("-> Desktop integration disabled. Skipping desktop file and icon export.")
 
     print("\n✅ Installation complete!")
 
