@@ -68,3 +68,14 @@ runtime:
   # Use tilde (~) for the user's home directory on the host.
   volumes:
     - "~/Repozytoria:/home/marcin/Repozytoria"
+
+  # OPTIONAL: A list of arguments to prepend *after* the main command
+  # but *before* any arguments passed by the desktop environment (e.g., file paths).
+  # Useful for forcing Wayland, disabling sandboxes, etc.
+  prepend_exec_args:
+    - "--ozone-platform=wayland"
+    # - "--no-sandbox" # Add this back if needed for VS Code
+
+  skip_categories:
+    - "TerminalEmulator"
+    - "System"
