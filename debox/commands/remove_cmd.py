@@ -1,6 +1,8 @@
 # debox/debox/commands/remove_cmd.py
 
+import configparser
 import os
+import shlex
 import shutil
 from pathlib import Path
 import glob # For finding icon files with different extensions
@@ -31,47 +33,56 @@ def remove_app(container_name: str, purge_home: bool):
         print(f"-> Found configuration for '{container_name}' at {config_path}")
     except Exception as e:
         print(f"Warning: Could not load configuration file {config_path}. Proceeding with cleanup based on name only. Error: {e}")
-    # --- Remove Podman resources ---
-    try:
-        print(f"-> Stopping container '{container_name}' (if running)...")
-        # Use --ignore to avoid errors if container is already stopped or doesn't exist
-        podman_utils.run_command(["podman", "stop", "--ignore", "--time=2", container_name])
-        
-        print(f"-> Removing container '{container_name}'...")
-        # Use --ignore for safety
-        podman_utils.run_command(["podman", "rm", "--ignore", container_name])
-        
-        image_tag = f"localhost/{container_name}:latest"
-        print(f"-> Removing image '{image_tag}'...")
-        # Use --ignore for safety
-        podman_utils.run_command(["podman", "rmi", "--ignore", image_tag])
-    except Exception as e:
-        print(f"Warning: Error during Podman resource cleanup for {container_name}: {e}")
+
+    commands_found_in_desktop = set() # To store base commands found
 
     # --- Remove Desktop Integration Files ---
     try:
         desktop_files_removed_count = 0
-        # --- Remove .desktop files by prefix ---
+        # --- Set to store unique alias names found in Exec= lines ---
+        aliases_found_in_desktop_files = set() 
+        
+        # --- Remove .desktop files by prefix AND collect aliases ---
         desktop_prefix = f"{container_name}_*.desktop"
         desktop_pattern = str(config_utils.DESKTOP_FILES_DIR / desktop_prefix)
         print(f"-> Searching for desktop files matching: {desktop_pattern}")
         
-        # Use glob to find all matching desktop files
         found_desktop_files = glob.glob(desktop_pattern)
         for desktop_path_str in found_desktop_files:
             desktop_path = Path(desktop_path_str)
             if desktop_path.is_file():
-                print(f"--> Found and removing desktop file: {desktop_path}")
+                print(f"--> Processing for alias extraction: {desktop_path}")
                 try:
+                    # --- Parse desktop file BEFORE removing ---
+                    temp_parser = configparser.ConfigParser(interpolation=None)
+                    temp_parser.optionxform = str
+                    temp_parser.read(desktop_path) 
+
+                    # Look primarily in the main [Desktop Entry] section
+                    if 'Desktop Entry' in temp_parser:
+                        exec_line = temp_parser.get('Desktop Entry', 'Exec', fallback=None)
+                        if exec_line:
+                            try:
+                                # The first word should be the alias
+                                alias_name = shlex.split(exec_line)[0] 
+                                print(f"    Extracted potential alias: {alias_name}")
+                                aliases_found_in_desktop_files.add(alias_name)
+                            except IndexError:
+                                print(f"    Warning: Could not parse Exec line: {exec_line}")
+                    
+                    # --- Now remove the .desktop file ---
+                    print(f"--> Removing desktop file: {desktop_path}")
                     desktop_path.unlink()
                     desktop_files_removed_count += 1
-                except OSError as e:
-                    print(f"--> Warning: Could not remove desktop file {desktop_path}: {e}")
+                    
+                except Exception as e: # Catch broader exceptions during parse/remove
+                    print(f"--> Warning: Could not process or remove desktop file {desktop_path}: {e}")
 
+        # --- Update desktop database if files were removed ---
         if desktop_files_removed_count > 0:
             print(f"-> Removed {desktop_files_removed_count} desktop file(s) for '{container_name}'.")
             print("-> Updating desktop application database...")
-            try: # Add try-except for robustness
+            try: 
                 podman_utils.run_command(["update-desktop-database", str(config_utils.DESKTOP_FILES_DIR)])
             except Exception as db_e:
                     print(f"Warning: Failed to update desktop database: {db_e}")
@@ -118,8 +129,52 @@ def remove_app(container_name: str, purge_home: bool):
         else:
             print(f"-> No icon files starting with '{container_name}_' found in user directories.")
 
+        # --- Remove Alias Scripts based on collected names ---
+        print("-> Removing associated alias scripts...")
+        local_bin_dir = Path(os.path.expanduser("~/.local/bin"))
+        aliases_removed_count = 0
+        
+        if not aliases_found_in_desktop_files:
+                print("--> No potential aliases identified from removed .desktop files.")
+        elif not local_bin_dir.is_dir():
+                print(f"--> Warning: Local bin directory not found: {local_bin_dir}. Cannot remove aliases.")
+        else:
+            print(f"--> Aliases identified for potential removal: {list(aliases_found_in_desktop_files)}")
+            for alias_name in aliases_found_in_desktop_files:
+                alias_path = local_bin_dir / alias_name
+                if alias_path.is_file():
+                    # Optional safety check could still be added here (verify content)
+                    print(f"--> Found and removing alias script: {alias_path}")
+                    try:
+                        alias_path.unlink()
+                        aliases_removed_count += 1
+                    except OSError as e:
+                        print(f"--> Warning: Could not remove alias script {alias_path}: {e}")
+                #else: # No need to print if not found, expected if shared
+                #    print(f"--> Alias script not found (possibly shared or already removed): {alias_path}")
+
+        if aliases_removed_count > 0:
+                print(f"-> Removed {aliases_removed_count} alias script(s).")
+            
     except Exception as e:
         print(f"Warning: Error during desktop integration cleanup for {container_name}: {e}")
+
+    # --- Remove Podman resources ---
+    try:
+        print(f"-> Stopping container '{container_name}' (if running)...")
+        # Use --ignore to avoid errors if container is already stopped or doesn't exist
+        podman_utils.run_command(["podman", "stop", "--ignore", "--time=2", container_name])
+        
+        print(f"-> Removing container '{container_name}'...")
+        # Use --ignore for safety
+        podman_utils.run_command(["podman", "rm", "--ignore", container_name])
+        
+        image_tag = f"localhost/{container_name}:latest"
+        print(f"-> Removing image '{image_tag}'...")
+        # Use --ignore for safety
+        podman_utils.run_command(["podman", "rmi", "--ignore", image_tag])
+    except Exception as e:
+        print(f"Warning: Error during Podman resource cleanup for {container_name}: {e}")
 
     # --- Remove Debox Configuration ---
     try:

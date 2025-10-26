@@ -25,11 +25,6 @@ image:
     - "fontconfig" # Ensure font configuration utility is present
     - "libfontconfig1" # Ensure the core library is present
 
-# --- Desktop Integration ---
-export:
-  # The binary name for Firefox ESR
-  binary: "firefox-esr"
-
 # --- Runtime Environment Configuration ---
 runtime:
   # We need full desktop integration for the browser

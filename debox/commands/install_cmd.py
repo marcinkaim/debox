@@ -254,7 +254,13 @@ def _export_desktop_file(config: dict):
     container_name = config['container_name']
     desktop_files_processed = 0
     icons_were_copied = False
-    
+
+    # --- Get alias map from config ---
+    alias_map = config.get('runtime', {}).get('aliases', {})
+
+    # --- Set to store unique base commands found ---
+    unique_base_commands = set()
+
     # --- Get skip_categories from config ---
     # Read the list from the YAML, default to an empty list if not specified
     skip_categories_set = set(config.get('runtime', {}).get('skip_categories', []))
@@ -293,9 +299,7 @@ def _export_desktop_file(config: dict):
         print(f"-> Found {len(found_desktop_paths)} potential .desktop file(s). Processing...")
 
         all_icon_names_to_export = set()
-        # Store tuples: (original_path, parser_obj, original_exec_map)
-        # original_exec_map = {section_name: original_exec_string}
-        parsed_data = [] 
+        parsed_data = [] # Stores tuples: (original_path, parser_obj)
 
         # --- 2. Loop 1: Parse files, gather icons, store original Exec ---
         for desktop_path_in_container in found_desktop_paths:
@@ -325,20 +329,27 @@ def _export_desktop_file(config: dict):
                      print(f"--> Skipping file due to category: {desktop_path_in_container} (Categories: {categories_str})")
                      continue
                 
-                original_exec_map = {}
-                # Collect icons and original Exec commands from all sections
+                # Collect icons and find base commands from all sections
+                has_exec = False
                 for section_name in parser.sections():
                     section = parser[section_name]
                     if 'Exec' in section:
-                        original_exec_map[section_name] = section['Exec'] # Store original command
+                        has_exec = True
+                        # --- Extract base command and add to set ---
+                        original_exec = section['Exec']
+                        try:
+                            original_base_command = shlex.split(original_exec)[0]
+                            unique_base_commands.add(original_base_command) 
+                        except IndexError:
+                            pass # Ignore malformed Exec lines
                     
                     icon_in_section = section.get('Icon')
                     if icon_in_section:
                         all_icon_names_to_export.add(icon_in_section)
                 
-                # Only proceed if at least one Exec command was found
-                if original_exec_map:
-                    parsed_data.append((desktop_path_in_container, parser, original_exec_map))
+                # Only store parser if it had an Exec command
+                if has_exec:
+                    parsed_data.append((desktop_path_in_container, parser))
                     desktop_files_processed += 1
                 else:
                     print(f"--> Skipping file with no Exec command: {desktop_path_in_container}")
@@ -362,20 +373,37 @@ def _export_desktop_file(config: dict):
 
         # --- 4. Loop 2: Modify Exec/Icon entries and save .desktop files ---
         print("-> Saving modified .desktop files...")
-        for original_path, parser, original_exec_map in parsed_data:
+        for original_path, parser in parsed_data: # Removed original_exec_map from tuple
             original_filename = Path(original_path).name
             
             # Modify Exec and Icon entries in all sections
             for section_name in parser.sections():
                 section = parser[section_name]
                 
-                # --- CORE CHANGE: Prepend 'debox run' to ORIGINAL Exec ---
-                if section_name in original_exec_map:
-                    original_exec = original_exec_map[section_name]
-                    # Prepend 'debox run <container> -- ' to the original command
-                    section['Exec'] = f"debox run {container_name} -- {original_exec}"
+                # --- Modify 'Exec' line to use the ALIAS ---
+                if 'Exec' in section:
+                    original_exec = section['Exec']
+                    try:
+                        # Split original command to separate command from args
+                        exec_parts_orig = shlex.split(original_exec)
+                        if not exec_parts_orig: continue # Skip empty Exec lines
+
+                        original_base_command = exec_parts_orig[0]
+                        original_args = exec_parts_orig[1:] # Keep original args like %F, %u
+
+                        # Determine the alias name for this command
+                        command_name_only = Path(original_base_command).name 
+                        alias_name = alias_map.get(command_name_only, command_name_only)
+
+                        # Construct the new Exec line using the alias + original args
+                        new_exec_parts = [alias_name] + original_args
+                        section['Exec'] = " ".join(shlex.quote(part) for part in new_exec_parts) # Rejoin safely
+
+                    except Exception as e:
+                         print(f"--> Warning: Could not parse/modify Exec='{original_exec}' in section [{section_name}] of {original_filename}: {e}")
+                         # Keep original Exec line if modification fails
                 
-                # Prefix Icon name (same logic as before)
+                # Prefix Icon name (remains the same)
                 original_icon_name = section.get('Icon')
                 if original_icon_name:
                     prefixed_icon_name = f"{container_name}_{original_icon_name}"
@@ -399,6 +427,31 @@ def _export_desktop_file(config: dict):
             except Exception as write_e:
                  print(f"--> Error writing {final_desktop_path}: {write_e}")
 
+        # --- Create Aliases AFTER processing all files ---
+        print("-> Creating alias scripts...")
+        aliases_created_count = 0
+        if not unique_base_commands:
+             print("--> No executable commands found in .desktop files to create aliases for.")
+        else:
+             # Check PATH once before creating aliases
+             local_bin_path = str(Path(os.path.expanduser("~/.local/bin")))
+             current_path = os.environ.get("PATH", "")
+             if local_bin_path not in current_path.split(os.pathsep):
+                 print("--- WARNING ---")
+                 print(f"Directory '{local_bin_path}' is not in your PATH.") # ... (rest of warning)
+                 print("---------------")
+
+             for base_command in unique_base_commands:
+                 # Get just the command name if it's a path (e.g., /usr/bin/libreoffice -> libreoffice)
+                 command_name_only = Path(base_command).name 
+                 # Determine the alias name using the map or the command name itself
+                 alias_name = alias_map.get(command_name_only, command_name_only)
+                 # Call the helper function with the BASE command
+                 _create_alias_script(alias_name, container_name, base_command)
+                 aliases_created_count += 1
+             print(f"-> Created/Updated {aliases_created_count} alias script(s).")
+        # --- End Alias Creation ---
+
         # --- 5. Update caches ---
         if icons_were_copied:
              print("-> Updating icon cache...")
@@ -418,6 +471,39 @@ def _export_desktop_file(config: dict):
         # Stop the temporary container
         print("-> Stopping temporary container...")
         podman_utils.run_command(["podman", "stop", "--time=2", container_name])
+
+def _create_alias_script(alias_name: str, container_name: str, base_command: str):
+    """
+    Creates an executable shell script in ~/.local/bin to act as an alias,
+    passing all command-line arguments to the original command inside the container.
+
+    Args:
+        alias_name: The name of the script file to create (e.g., 'code-devbox').
+        container_name: The name of the target container (e.g., 'debox-vscode').
+        base_command: The original executable command inside the container (e.g., '/usr/share/code/code').
+    """
+    local_bin_dir = Path(os.path.expanduser("~/.local/bin"))
+    local_bin_dir.mkdir(parents=True, exist_ok=True)
+    alias_path = local_bin_dir / alias_name
+
+    # --- UPDATED SCRIPT CONTENT ---
+    # Calls 'debox run' with the container, '--', the original base command,
+    # and forwards all arguments received by the alias script ("$@").
+    script_content = f"""#!/bin/sh
+# Auto-generated by debox for container '{container_name}' launching '{base_command}'
+
+debox run {container_name} -- {base_command} "$@"
+"""
+
+    try:
+        # Check if a script with this name already exists and maybe warn/skip?
+        # For now, we just overwrite.
+        with open(alias_path, 'w') as f:
+            f.write(script_content)
+        os.chmod(alias_path, 0o755) # Make it executable
+        # print(f"--> Created/Updated alias script: {alias_path}") # Keep print inside the loop later
+    except Exception as e:
+        print(f"--> Warning: Failed to create alias script {alias_path}: {e}")
 
 def _export_icons(container_name: str, icon_names: list[str]) -> bool:
     """

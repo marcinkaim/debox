@@ -79,3 +79,11 @@ runtime:
   skip_categories:
     - "TerminalEmulator"
     - "System"
+
+  # OPTIONAL: Map original commands found in .desktop files to custom aliases on the host.
+  # Keys are the base commands (first word of Exec=), values are the desired alias names.
+  # If a command is not mapped, its original name will be used as the alias.
+  aliases:
+    # Map the 'code' command to 'code-devbox' on the host
+    "code": "code-devbox" 
+    # Example: "firefox-esr": "firefox-devbox"
