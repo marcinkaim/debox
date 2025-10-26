@@ -1,6 +1,7 @@
 # debox/commands/install_cmd.py
 
 from pathlib import Path
+import shlex
 import shutil
 import configparser
 import subprocess
@@ -206,6 +207,7 @@ def _generate_podman_flags(config: dict) -> list[str]:
             "DISPLAY",
             "WAYLAND_DISPLAY",
             "XDG_RUNTIME_DIR", # Crucial for Wayland, D-Bus, and Pipewire sockets
+            "XDG_SESSION_TYPE", # Explicitly tell it's Wayland
             "DBUS_SESSION_BUS_ADDRESS", # Crucial for D-Bus communication
             "PULSE_SERVER", # For audio (PulseAudio/Pipewire)
         ]
@@ -240,134 +242,179 @@ def _generate_podman_flags(config: dict) -> list[str]:
 
 def _export_desktop_file(config: dict):
     """
-    Temporarily starts the container, waits for it to be running,
-    finds/parses the .desktop file, determines icon names, calls _export_icons,
-    modifies Exec lines, sets the prefixed icon name, and integrates.
+    Temporarily starts the container, finds ALL .desktop files,
+    extracts ALL associated icons with prefixed names,
+    modifies Exec lines by prepending 'debox run <container> -- ',
+    sets prefixed icon names in ALL sections, saves modified .desktop files
+    with unique names, and updates host caches.
     """
     container_name = config['container_name']
-    binary = config['export']['binary']
+    desktop_files_processed = 0
+    icons_were_copied = False
     
+    # --- Get skip_categories from config ---
+    # Read the list from the YAML, default to an empty list if not specified
+    skip_categories_set = set(config.get('runtime', {}).get('skip_categories', []))
+    if skip_categories_set:
+        print(f"-> Will skip exporting .desktop files with categories: {list(skip_categories_set)}")
+    else:
+        print("-> No categories specified to skip. Will export all valid apps.")
+        
     try:
-        # --- Start the container temporarily ---
-        print("-> Temporarily starting container to extract files...")
+        print("-> Temporarily starting container...")
         podman_utils.run_command(["podman", "start", container_name])
+        print("-> Waiting for container to initialize...")
+        time.sleep(2) 
+        status = podman_utils.get_container_status(container_name)
+        print(f"-> Container status: {status}")
+        if "run" not in status.lower():
+             raise RuntimeError(f"Container {container_name} failed to start properly.")
 
-        # # Wait a couple of seconds for the container to fully start
-        # print("-> Waiting for container to initialize...")
-        # time.sleep(2) # Wait for 2 seconds
+        # --- 1. Find ALL .desktop files in the container ---
+        print("-> Searching for all .desktop files in container...")
+        find_cmd = [
+            "podman", "exec", container_name, 
+            "find", "/usr/share/applications/", "/usr/local/share/applications/", 
+            "-type", "f", "-name", "*.desktop" 
+        ]
+        process = subprocess.run(find_cmd, capture_output=True, text=True, check=False)
+        found_desktop_paths = process.stdout.strip().splitlines()
+
+        if process.returncode != 0 and not found_desktop_paths:
+             print(f"Warning: 'find' command for .desktop files failed: {process.stderr}")
+             return 
+        if not found_desktop_paths:
+             print("Warning: No .desktop files found in the container.")
+             return
+
+        print(f"-> Found {len(found_desktop_paths)} potential .desktop file(s). Processing...")
+
+        all_icon_names_to_export = set()
+        # Store tuples: (original_path, parser_obj, original_exec_map)
+        # original_exec_map = {section_name: original_exec_string}
+        parsed_data = [] 
+
+        # --- 2. Loop 1: Parse files, gather icons, store original Exec ---
+        for desktop_path_in_container in found_desktop_paths:
+            try:
+                print(f"--> Processing: {desktop_path_in_container}")
+                cat_cmd = ["podman", "exec", container_name, "cat", desktop_path_in_container]
+                original_content = podman_utils.run_command(cat_cmd, capture_output=True)
+                
+                parser = configparser.ConfigParser(interpolation=None)
+                parser.optionxform = str 
+                parser.read_string(original_content)
+
+                if 'Desktop Entry' not in parser or not parser.getboolean('Desktop Entry', 'NoDisplay', fallback=False) is False:
+                     if 'Desktop Entry' in parser and parser.getboolean('Desktop Entry', 'NoDisplay', fallback=False):
+                          print(f"--> Skipping hidden file (NoDisplay=true): {desktop_path_in_container}")
+                     else:
+                          print(f"--> Skipping invalid file (no [Desktop Entry]): {desktop_path_in_container}")
+                     continue
+
+                # --- Check Categories using config ---
+                categories_str = parser.get('Desktop Entry', 'Categories', fallback='')
+                # Ensure categories are split correctly, handling potential multiple semicolons
+                categories = set(cat.strip() for cat in categories_str.split(';') if cat.strip())
+                
+                # Check if any category is in the skip list from the config
+                if skip_categories_set.intersection(categories): # Use the set from config
+                     print(f"--> Skipping file due to category: {desktop_path_in_container} (Categories: {categories_str})")
+                     continue
+                
+                original_exec_map = {}
+                # Collect icons and original Exec commands from all sections
+                for section_name in parser.sections():
+                    section = parser[section_name]
+                    if 'Exec' in section:
+                        original_exec_map[section_name] = section['Exec'] # Store original command
+                    
+                    icon_in_section = section.get('Icon')
+                    if icon_in_section:
+                        all_icon_names_to_export.add(icon_in_section)
+                
+                # Only proceed if at least one Exec command was found
+                if original_exec_map:
+                    parsed_data.append((desktop_path_in_container, parser, original_exec_map))
+                    desktop_files_processed += 1
+                else:
+                    print(f"--> Skipping file with no Exec command: {desktop_path_in_container}")
+
+            except Exception as parse_e:
+                print(f"--> Warning: Failed to parse or process {desktop_path_in_container}: {parse_e}")
+
+        if not parsed_data:
+             print("Error: No valid .desktop files with Exec commands could be processed.")
+             return
+
+        # Add fallback icon if none were found at all
+        if not all_icon_names_to_export:
+             all_icon_names_to_export.add("application-default-icon")
         
-        # # Check status (optional but good for debugging)
-        # status = podman_utils.get_container_status(container_name)
-        # print(f"-> Container status: {status}")
-        # if "run" not in status.lower():
-        #      raise RuntimeError(f"Container {container_name} failed to start properly.")
-        
-        # --- Find and parse the original .desktop file ---
-        original_desktop_content = ""
-        desktop_path_in_container = ""
-        try:
-            find_cmd = ["podman", "exec", container_name, "find", "/usr/share/applications/", "/usr/local/share/applications/", "-name", f"{binary}.desktop"]
-            process = subprocess.run(find_cmd, capture_output=True, text=True, check=False)
-            found_desktops = process.stdout.strip().splitlines()
-            
-            if process.returncode != 0 and not found_desktops: raise FileNotFoundError(f"find failed: {process.stderr}")
-            if not found_desktops: raise FileNotFoundError("Original .desktop not found.")
-            
-            desktop_path_in_container = found_desktops[0]
-            cat_cmd = ["podman", "exec", container_name, "cat", desktop_path_in_container]
-            original_desktop_content = podman_utils.run_command(cat_cmd, capture_output=True)
-            print(f"-> Found original .desktop file at: {desktop_path_in_container}")
+        final_icon_list = list(all_icon_names_to_export)
+        print(f"-> Identified {len(final_icon_list)} unique icon name(s) to export: {final_icon_list}")
 
-        except Exception as e:
-            print(f"-> Warning: Could not find original .desktop file. Generating basic. Error: {e}")
-            original_desktop_content = f"[Desktop Entry]\nName={config['app_name']}\nExec={binary}\nIcon={binary}\nType=Application"
-
-        # Parse the .desktop content to extract information
-        parser = configparser.ConfigParser(interpolation=None)
-        parser.optionxform = str
-        parser.read_string(original_desktop_content)
-
-        # --- Determine the LIST of ALL unique icon names ---
-        icon_names_to_export = set() # Use a set to automatically handle duplicates
-
-        # Priority 1: Use the list from YAML if provided and not empty
-        yaml_icons = config.get('export', {}).get('icons', [])
-        if yaml_icons:
-            icon_names_to_export.update(yaml_icons) # Add all icons from YAML
-            print(f"-> Using icon names specified in YAML: {list(icon_names_to_export)}")
-        else:
-            # Priority 2: Scan ALL sections of the .desktop file for 'Icon=' keys
-            print("-> Scanning .desktop file for icon names...")
-            for section_name in parser.sections():
-                icon_in_section = parser.get(section_name, 'Icon', fallback=None)
-                if icon_in_section:
-                    icon_names_to_export.add(icon_in_section) # Add unique icon names
-
-            if icon_names_to_export:
-                print(f"-> Found icon names in .desktop file: {list(icon_names_to_export)}")
-            else:
-                 # Priority 3: Fallback to a standard default icon name
-                 print(f"-> No icons found in YAML or .desktop. Falling back to default.")
-                 icon_names_to_export.add("application-default-icon") # Use a generic fallback
-
-        # Convert set back to list for the export function
-        final_icon_list = list(icon_names_to_export)
-
-        # --- Call the dedicated icon export function with the full list ---
+        # --- 3. Call icon export function with the full list ---
         icons_were_copied = _export_icons(container_name, final_icon_list)
 
-        # --- Modify ALL relevant sections in the parser ---
-        for section_name in parser.sections():
-            section = parser[section_name]
+        # --- 4. Loop 2: Modify Exec/Icon entries and save .desktop files ---
+        print("-> Saving modified .desktop files...")
+        for original_path, parser, original_exec_map in parsed_data:
+            original_filename = Path(original_path).name
             
-            # 5a. Modify the 'Exec' line if it exists
-            if 'Exec' in section:
-                original_exec = section['Exec']
-                exec_parts = original_exec.split()
-                # Replace only the main command, keeping all arguments (%F, --new-window, etc.)
-                exec_parts[0] = f"debox run {container_name}"
-                section['Exec'] = " ".join(exec_parts)
+            # Modify Exec and Icon entries in all sections
+            for section_name in parser.sections():
+                section = parser[section_name]
+                
+                # --- CORE CHANGE: Prepend 'debox run' to ORIGINAL Exec ---
+                if section_name in original_exec_map:
+                    original_exec = original_exec_map[section_name]
+                    # Prepend 'debox run <container> -- ' to the original command
+                    section['Exec'] = f"debox run {container_name} -- {original_exec}"
+                
+                # Prefix Icon name (same logic as before)
+                original_icon_name = section.get('Icon')
+                if original_icon_name:
+                    prefixed_icon_name = f"{container_name}_{original_icon_name}"
+                    section['Icon'] = prefixed_icon_name
+                elif section_name == 'Desktop Entry' and final_icon_list: # Fallback for main entry
+                    section['Icon'] = f"{container_name}_{final_icon_list[0]}"
 
-            # --- Prefix the Icon name IN THIS SPECIFIC SECTION ---
-            # Use the icon name originally found in this section
-            original_icon_name_in_section = parser.get(section_name, 'Icon', fallback=None)
-            if original_icon_name_in_section:
-                 # Create the prefixed name for *this specific icon*
-                 prefixed_icon_name = f"{container_name}_{original_icon_name_in_section}"
-                 section['Icon'] = prefixed_icon_name
-            elif section_name == 'Desktop Entry' and final_icon_list:
-                 # If main entry had no icon, use the first one from our list (prefixed)
-                 section['Icon'] = f"{container_name}_{final_icon_list[0]}"
+            # Modify main Name entry
+            if 'Desktop Entry' in parser:
+                main_section = parser['Desktop Entry']
+                main_section['Name'] = f"{main_section.get('Name', original_filename)} ({container_name})"
 
-        # Modify the main entry's Name
-        if 'Desktop Entry' in parser:
-            main_section = parser['Desktop Entry']
-            main_section['Name'] = f"{main_section.get('Name', config['app_name'])} ({container_name})"
+            # Construct final path on host using prefixed filename
+            final_desktop_filename = f"{container_name}_{original_filename}"
+            final_desktop_path = config_utils.DESKTOP_FILES_DIR / final_desktop_filename
+            
+            try:
+                with open(final_desktop_path, 'w') as f:
+                    parser.write(f, space_around_delimiters=False)
+                print(f"--> Saved: {final_desktop_path}")
+            except Exception as write_e:
+                 print(f"--> Error writing {final_desktop_path}: {write_e}")
 
-        # --- Write the final .desktop file ---
-        final_desktop_path = config_utils.DESKTOP_FILES_DIR / f"{container_name}.desktop"
-        with open(final_desktop_path, 'w') as f:
-            parser.write(f, space_around_delimiters=False)
-        print(f"-> Created modified desktop file at {final_desktop_path}")
-        
-        # --- Update icon cache and desktop database ---
+        # --- 5. Update caches ---
         if icons_were_copied:
              print("-> Updating icon cache...")
              try: # Add try-except for robustness
                  podman_utils.run_command(["gtk-update-icon-cache", "-f", "-t", str(Path(os.path.expanduser("~/.local/share/icons")))])
              except Exception as cache_e:
                   print(f"Warning: Failed to update icon cache: {cache_e}")
-
-        # 9. Update the desktop database
+             
         print("-> Updating desktop application database...")
         podman_utils.run_command(["update-desktop-database", str(config_utils.DESKTOP_FILES_DIR)])
-        
-        print(f"-> Successfully exported desktop file for '{config['app_name']}'")
 
+        print(f"-> Successfully processed {desktop_files_processed} desktop file(s).")
+
+    except Exception as e:
+         print(f"Error during desktop file export process: {e}")
     finally:
-        # --- Always stop the container afterward ---
+        # Stop the temporary container
         print("-> Stopping temporary container...")
-        podman_utils.run_command(["podman", "stop", "--time", "2", container_name])
+        podman_utils.run_command(["podman", "stop", "--time=2", container_name])
 
 def _export_icons(container_name: str, icon_names: list[str]) -> bool:
     """

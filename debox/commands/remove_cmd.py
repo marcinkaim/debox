@@ -50,30 +50,56 @@ def remove_app(container_name: str, purge_home: bool):
 
     # --- Remove Desktop Integration Files ---
     try:
-        # Remove .desktop file
-        desktop_file_path = config_utils.DESKTOP_FILES_DIR / f"{container_name}.desktop"
-        if desktop_file_path.is_file():
-            print(f"-> Removing desktop file: {desktop_file_path}")
-            desktop_file_path.unlink()
-            # Update desktop database after removal
+        desktop_files_removed_count = 0
+        # --- Remove .desktop files by prefix ---
+        desktop_prefix = f"{container_name}_*.desktop"
+        desktop_pattern = str(config_utils.DESKTOP_FILES_DIR / desktop_prefix)
+        print(f"-> Searching for desktop files matching: {desktop_pattern}")
+        
+        # Use glob to find all matching desktop files
+        found_desktop_files = glob.glob(desktop_pattern)
+        for desktop_path_str in found_desktop_files:
+            desktop_path = Path(desktop_path_str)
+            if desktop_path.is_file():
+                print(f"--> Found and removing desktop file: {desktop_path}")
+                try:
+                    desktop_path.unlink()
+                    desktop_files_removed_count += 1
+                except OSError as e:
+                    print(f"--> Warning: Could not remove desktop file {desktop_path}: {e}")
+
+        if desktop_files_removed_count > 0:
+            print(f"-> Removed {desktop_files_removed_count} desktop file(s) for '{container_name}'.")
             print("-> Updating desktop application database...")
-            podman_utils.run_command(["update-desktop-database", str(config_utils.DESKTOP_FILES_DIR)])
+            try: # Add try-except for robustness
+                podman_utils.run_command(["update-desktop-database", str(config_utils.DESKTOP_FILES_DIR)])
+            except Exception as db_e:
+                    print(f"Warning: Failed to update desktop database: {db_e}")
         else:
-            print(f"-> Desktop file not found: {desktop_file_path}") # More specific message
- 
-        # --- ICON REMOVAL LOGIC (Search by Prefix) ---
-        try:
-            # --- Search for files starting with the container name prefix ---
-            icon_prefix_pattern = f"{container_name}_*.*" 
-            print(f"-> Searching for icon files starting with '{container_name}_' to remove...")
+                print(f"-> No desktop files found matching prefix '{container_name}_'.")
 
-            icon_removed_count = 0
-            user_icon_dir = Path(os.path.expanduser("~/.local/share/icons"))
-            user_pixmap_dir = Path(os.path.expanduser("~/.local/share/pixmaps"))
+        # --- Remove icon files by prefix (Logic remains the same as last version) ---
+        icon_prefix_pattern = f"{container_name}_*.*" 
+        print(f"-> Searching for icon files starting with '{container_name}_' to remove...")
+        
+        icon_removed_count = 0
+        user_icon_dir = Path(os.path.expanduser("~/.local/share/icons"))
+        user_pixmap_dir = Path(os.path.expanduser("~/.local/share/pixmaps"))
 
-            # Search recursively in user icons dir for the prefix pattern
-            if user_icon_dir.is_dir():
-                for icon_path in user_icon_dir.rglob(icon_prefix_pattern): 
+        # Search recursively in user icons dir for the prefix pattern
+        if user_icon_dir.is_dir():
+            for icon_path in user_icon_dir.rglob(icon_prefix_pattern): 
+                if icon_path.is_file():
+                    print(f"--> Found and removing icon: {icon_path}")
+                    try:
+                        icon_path.unlink()
+                        icon_removed_count += 1
+                    except OSError as e:
+                        print(f"--> Warning: Could not remove icon {icon_path}: {e}")
+        
+        # Search directly in user pixmaps dir for the prefix pattern
+        if user_pixmap_dir.is_dir():
+                for icon_path in user_pixmap_dir.glob(icon_prefix_pattern): 
                     if icon_path.is_file():
                         print(f"--> Found and removing icon: {icon_path}")
                         try:
@@ -81,31 +107,16 @@ def remove_app(container_name: str, purge_home: bool):
                             icon_removed_count += 1
                         except OSError as e:
                             print(f"--> Warning: Could not remove icon {icon_path}: {e}")
-            
-            # Search directly in user pixmaps dir for the prefix pattern
-            if user_pixmap_dir.is_dir():
-                 for icon_path in user_pixmap_dir.glob(icon_prefix_pattern): 
-                     if icon_path.is_file():
-                         print(f"--> Found and removing icon: {icon_path}")
-                         try:
-                             icon_path.unlink()
-                             icon_removed_count += 1
-                         except OSError as e:
-                             print(f"--> Warning: Could not remove icon {icon_path}: {e}")
 
-            if icon_removed_count > 0:
-                print(f"-> Removed {icon_removed_count} icon file(s) associated with '{container_name}'.")
-                print("-> Updating icon cache...")
-                try:
-                    podman_utils.run_command(["gtk-update-icon-cache", "-f", "-t", str(user_icon_dir)])
-                except Exception as cache_e:
-                     print(f"Warning: Failed to update icon cache: {cache_e}")
-            else:
-                # Use the correct pattern in the warning message
-                print(f"-> No icon files starting with '{container_name}_' found in user directories.")
-
-        except Exception as e:
-            print(f"Warning: Error during icon cleanup for {container_name}: {e}")
+        if icon_removed_count > 0:
+            print(f"-> Removed {icon_removed_count} icon file(s) associated with '{container_name}'.")
+            print("-> Updating icon cache...")
+            try:
+                podman_utils.run_command(["gtk-update-icon-cache", "-f", "-t", str(user_icon_dir)])
+            except Exception as cache_e:
+                    print(f"Warning: Failed to update icon cache: {cache_e}")
+        else:
+            print(f"-> No icon files starting with '{container_name}_' found in user directories.")
 
     except Exception as e:
         print(f"Warning: Error during desktop integration cleanup for {container_name}: {e}")

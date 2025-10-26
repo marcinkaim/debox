@@ -31,7 +31,7 @@ def load_config(config_path: Path) -> dict:
         config = yaml.safe_load(f)
 
     # Basic validation to ensure required keys are present.
-    required_keys = ['app_name', 'container_name', 'image', 'export']
+    required_keys = ['app_name', 'container_name', 'image']
     for key in required_keys:
         if key not in config:
             raise ValueError(f"Missing required key in config file: '{key}'")
