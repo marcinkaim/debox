@@ -88,9 +88,17 @@ def install_app(config_path: Path):
             "HOST_LOCALE": host_locale,
         }
 
-        # Pass the app_config_dir as the context directory
-        podman_utils.build_image(containerfile, image_tag, context_dir=app_config_dir, build_args=build_args)
-        print(f"-> Successfully built image '{image_tag}'")
+        # --- ADD LABEL TO IMAGE ---
+        image_label = {"debox.managed": "true"}
+
+        podman_utils.build_image(
+            containerfile, 
+            image_tag, 
+            context_dir=app_config_dir, 
+            build_args=build_args,
+            labels=image_label
+        )
+        print(f"-> Successfully built and labeled image '{image_tag}'")
     except Exception as e:
         print(f"Error building image: {e}")
         # Attempt cleanup? Maybe just exit for now.
@@ -188,7 +196,14 @@ def _generate_podman_flags(config: dict) -> list[str]:
     including full desktop integration flags.
     """
     flags = []
-    
+
+    container_name = config['container_name'] # Get container name
+
+    # --- ADD LABEL TO CONTAINER ---
+    flags.extend(["--label", "debox.managed=true"])
+    flags.extend(["--label", f"debox.app.name={config.get('app_name', 'unknown')}"]) # Optional extra info
+    flags.extend(["--label", f"debox.container.name={container_name}"]) # Optional extra info
+
     # --- Add the crucial flag to keep the host user ID ---
     # This disables user namespace mapping and allows the container user
     # to have the same UID as the host user, which is essential for

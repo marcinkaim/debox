@@ -6,7 +6,7 @@ from pathlib import Path
 
 # Import the modules that will contain the logic for each command.
 # We will create these files in the next steps.
-from .commands import install_cmd, remove_cmd, list_cmd, run_cmd
+from .commands import install_cmd, remove_cmd, list_cmd, run_cmd, safe_prune_cmd
 
 # Create the main Typer application object.
 # This object will manage all our commands.
@@ -57,6 +57,16 @@ def run(
     """
     # Pass the collected arguments to the backend function
     run_cmd.run_app(app_name, app_args if app_args else [])
+
+@app.command("safe-prune")
+def safe_prune(
+    force: Annotated[bool, typer.Option("-f", "--force", help="Do not prompt for confirmation.")] = False
+):
+    """
+    Removes unused Podman data (containers, images, networks, volumes)
+    EXCEPT for those managed by debox (labeled 'debox.managed=true').
+    """
+    safe_prune_cmd.prune_resources(force)
 
 if __name__ == "__main__":
     app()

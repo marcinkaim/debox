@@ -22,21 +22,23 @@ def run_command(command: list[str], input_str: str = None, capture_output: bool 
         return process.stdout.strip()
     return None
 
-def build_image(containerfile_content: str, tag: str, context_dir: Path, build_args: Optional[Dict[str, str]] = None):
+def build_image(containerfile_content: str, tag: str, context_dir: Path, 
+                build_args: Optional[Dict[str, str]] = None, 
+                labels: Optional[Dict[str, str]] = None): # Add labels param
     """
-    Builds a container image from a Containerfile string, using a specified
-    directory as the build context.
+    Builds a container image, optionally adding labels.
     """
     command = ["podman", "build", "-f", "-", "-t", tag]
-    
-    # --- Add build arguments if they are provided ---
+
     if build_args:
         for key, value in build_args.items():
             command.extend(["--build-arg", f"{key}={value}"])
 
-    # Append the context directory path as the last argument
-    command.append(str(context_dir))
+    if labels:
+        for key, value in labels.items():
+            command.extend(["--label", f"{key}={value}"])
 
+    command.append(str(context_dir))
     run_command(command, input_str=containerfile_content)
 
 def create_container(name: str, image_tag: str, flags: list[str]):
