@@ -209,47 +209,148 @@ def _generate_podman_flags(config: dict) -> list[str]:
     # to have the same UID as the host user, which is essential for
     # accessing host resources like Wayland and D-Bus sockets.
     flags.append("--userns=keep-id")
-    
-    # Handle desktop integration
-    if config.get('runtime', {}).get('desktop_integration', True):
+
+    print("-> Applying permissions:") # Log start
+    permissions = config.get('permissions', {})
+
+    # --- Network ---
+    net_perm = permissions.get('network', True)
+    if not net_perm:
+        flags.append("--network=none")
+        print("   - Network: Disabled")
+    else:
+        # Default Podman network ('full' implies default)
+        print("   - Network: Enabled (default bridge)")
+
+    # --- Desktop Integration Base (Required for most GUI permissions) ---
+    desktop_integration_enabled = config.get('runtime', {}).get('desktop_integration', True)
+    if desktop_integration_enabled:
+        print("   - Desktop Integration: Enabled")
         xdg_runtime_dir = os.environ.get("XDG_RUNTIME_DIR")
         if not xdg_runtime_dir:
-            print("Warning: XDG_RUNTIME_DIR is not set. GUI applications may not work.")
+            print("     Warning: XDG_RUNTIME_DIR is not set. GUI apps may fail.")
         
-        # Define a list of essential environment variables to pass from host to container
-        essential_env_vars = [
-            "DISPLAY",
-            "WAYLAND_DISPLAY",
-            "XDG_RUNTIME_DIR", # Crucial for Wayland, D-Bus, and Pipewire sockets
-            "XDG_SESSION_TYPE", # Explicitly tell it's Wayland
-            "DBUS_SESSION_BUS_ADDRESS", # Crucial for D-Bus communication
-            "PULSE_SERVER", # For audio (PulseAudio/Pipewire)
-        ]
-        
+        essential_env_vars = ["DISPLAY", "WAYLAND_DISPLAY", "XDG_RUNTIME_DIR", 
+                              "DBUS_SESSION_BUS_ADDRESS", "PULSE_SERVER", "XDG_SESSION_TYPE"]
         for var in essential_env_vars:
-            if os.environ.get(var):
-                flags.extend(["-e", var])
-
-        # Mount essential sockets for GUI operation
-        flags.extend([
-            "--device", "/dev/dri", # For GPU acceleration
-            # Mount the system D-Bus socket for system-wide services communication.
-            # It's read-only as the app only needs to talk to it, not modify it.
-            "-v", "/var/run/dbus/system_bus_socket:/var/run/dbus/system_bus_socket:ro"])
+             if os.environ.get(var): flags.extend(["-e", var])
         
+        # Mount user session directory (contains Wayland, session D-Bus, Pipewire/Pulse sockets)
         if xdg_runtime_dir:
-            # Mount the entire runtime directory, which contains sockets for
-            # Wayland, D-Bus, Pipewire, etc.
-            flags.extend(["-v", f"{xdg_runtime_dir}:{xdg_runtime_dir}:rw"])
+            flags.extend(["-v", f"{xdg_runtime_dir}:{xdg_runtime_dir}:rw"]) 
+    else:
+         print("   - Desktop Integration: Disabled")
 
-    # Handle isolated home directory
-    home_dir = config_utils.get_app_home_dir(config['container_name'])
+    # --- GPU Acceleration ---
+    # Default to True if desktop integration is enabled
+    gpu_perm = permissions.get('gpu', desktop_integration_enabled) 
+    if desktop_integration_enabled and gpu_perm: # Check boolean True
+        if Path("/dev/dri").exists():
+             flags.append("--device=/dev/dri")
+             print("   - GPU (/dev/dri): Enabled")
+        else:
+             print("     Warning: /dev/dri not found on host, cannot enable GPU.")
+    else:
+        print("   - GPU (/dev/dri): Disabled")
+
+    # --- Sound ---
+    # Default to True if desktop integration is enabled
+    sound_perm = permissions.get('sound', desktop_integration_enabled) 
+    if desktop_integration_enabled and sound_perm: # Check boolean True
+        print("   - Sound: Enabled (via session bus)")
+    else:
+        print("   - Sound: Disabled")
+
+    # --- System D-Bus ---
+    # Default to True
+    sys_dbus_perm = permissions.get('system_dbus', True) 
+    sys_dbus_socket = Path("/var/run/dbus/system_bus_socket")
+    if sys_dbus_perm and sys_dbus_socket.is_socket(): # Check boolean True
+        flags.extend(["-v", f"{sys_dbus_socket}:{sys_dbus_socket}:ro"])
+        print("   - System D-Bus: Enabled (read-only)")
+    else:
+        print(f"   - System D-Bus: Disabled {'(socket not found)' if sys_dbus_perm else ''}")
+
+    # --- Bluetooth ---
+    # Default to False
+    bt_perm = permissions.get('bluetooth', False) 
+    if bt_perm: # Check boolean True
+        if sys_dbus_perm and sys_dbus_socket.is_socket():
+            print("   - Bluetooth: Enabled (via System D-Bus)")
+        else:
+            print("     Warning: Bluetooth requires 'system_dbus: true'.")
+            print("   - Bluetooth: Disabled (System D-Bus missing)")
+    else:
+        print("   - Bluetooth: Disabled")
+
+    # --- Webcam ---
+    # Default to False
+    webcam_perm = permissions.get('webcam', False) 
+    if webcam_perm: # Check boolean True
+        video_devices = list(Path("/dev").glob("video*"))
+        if video_devices:
+            for dev in video_devices: flags.extend(["--device", str(dev)])
+            print(f"   - Webcam: Enabled (found {len(video_devices)} device(s))")
+        else:
+            print("     Warning: Webcam requested, but no /dev/video* found.")
+            print("   - Webcam: Disabled (device not found)")
+    else:
+        print("   - Webcam: Disabled")
+
+    # --- Microphone ---
+    # Default to False
+    mic_perm = permissions.get('microphone', False) 
+    if mic_perm: # Check boolean True
+        if desktop_integration_enabled and os.environ.get("XDG_RUNTIME_DIR"):
+            print("   - Microphone: Enabled (via session bus)")
+        else:
+             print("     Warning: Microphone access requires desktop integration.")
+             print("   - Microphone: Disabled")
+    else:
+        print("   - Microphone: Disabled")
+
+    # --- Printers ---
+    # Default to False
+    printer_perm = permissions.get('printers', False) 
+    cups_socket = Path("/run/cups/cups.sock")
+    if printer_perm: # Check boolean True
+        if cups_socket.is_socket():
+             flags.extend(["-v", f"{cups_socket}:{cups_socket}:rw"]) 
+             print("   - Printers: Enabled (via CUPS socket)")
+        else:
+             print("     Warning: Printer access requested, but CUPS socket not found.")
+             print("   - Printers: Disabled (socket not found)")
+    else:
+         print("   - Printers: Disabled")
+
+    # --- Explicit Devices ---
+    explicit_devices = permissions.get('devices', [])
+    if explicit_devices:
+        print("   - Explicit Devices:")
+        for device in explicit_devices:
+            if Path(device).exists():
+                 flags.extend(["--device", device])
+                 print(f"     - Added: {device}")
+            else:
+                 print(f"     - Warning: Device '{device}' not found on host. Skipping.")
+    else:
+         print("   - Explicit Devices: None")
+         
+    # --- Volumes (Remain the same) ---
+    print("   - Volumes:")
+    # Isolated Home
+    home_dir = config_utils.get_app_home_dir(container_name)
     flags.extend(["-v", f"{home_dir}:{os.path.expanduser('~')}:Z"])
-    
-    # Handle additional volumes
+    print(f"     - Isolated Home: {home_dir} -> ~")
+    # Additional Volumes
     for volume in config.get('runtime', {}).get('volumes', []):
-        host_path, container_path = volume.split(':')
-        expanded_host_path = os.path.expanduser(host_path)
-        flags.extend(["-v", f"{expanded_host_path}:{container_path}:Z"])
+        try:
+            host_path, container_path = volume.split(':')
+            expanded_host_path = os.path.expanduser(host_path)
+            flags.extend(["-v", f"{expanded_host_path}:{container_path}:Z"])
+            print(f"     - Additional: {expanded_host_path} -> {container_path}")
+        except ValueError:
+            print(f"     - Warning: Invalid volume format: '{volume}'. Skipping.")
 
+    print("-> Finished applying permissions.")
     return flags

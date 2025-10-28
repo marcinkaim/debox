@@ -1,53 +1,53 @@
 # Configuration for the full LibreOffice Suite
-
-# Schema version
 version: 1
 
 # --- Application Metadata ---
-# General name for this container setup
 app_name: "LibreOffice Suite" 
-# Unique container name
 container_name: "debox-libreoffice" 
 
 # --- Container Image Definition ---
 image:
-  # Use the same stable Debian base
   base: "debian:latest"
-  
-  # No external repositories needed
   repositories:
-
-  # Install the main LibreOffice metapackage and necessary integrations/fonts
   packages:
-    - "libreoffice"             # Main metapackage, installs Writer, Calc, Impress, etc.
-    - "libreoffice-gtk3"        # Essential for proper look & feel in GNOME
-    - "libreoffice-l10n-pl"     # Polish language pack
-    - "libreoffice-java-common" # Better Java integration
-    - "default-jre-headless"    # Java Runtime
-    - "libpulse0"               # Audio support
-    - "fonts-noto-core"         # Common fonts
-    - "fonts-dejavu-core"       # Common fonts
-    - "fonts-cantarell"         # GNOME UI font
-    - "fonts-liberation2"       # Common font substitutes
-    - "fontconfig"              # Font management
-    - "libfontconfig1"          # Font management library
-    - "libcanberra-gtk3-module" # Reduces GTK warnings
+    - "libreoffice"
+    - "libreoffice-gtk3"
+    - "libreoffice-l10n-pl"
+    - "libreoffice-java-common"
+    - "default-jre-headless"
+    - "libpulse0"
+    - "fonts-noto-core"
+    - "fonts-dejavu-core"
+    - "fonts-cantarell"
+    - "fonts-liberation2"
+    - "fontconfig"
+    - "libfontconfig1"
+    - "libcanberra-gtk3-module"
+    - "python3" # Keep alive script
+    - "locales" # Keep alive script locale fix?
 
 # --- Runtime Environment Configuration ---
 runtime:
   desktop_integration: true
   volumes:
-    # Mount common user directories
     - "~/Dokumenty:/home/marcin/Dokumenty"
     - "~/Pobrane:/home/marcin/Pobrane"
-    # Optional: Mount Templates if you use custom LibreOffice templates
     - "~/Szablony:/home/marcin/Szablony"
-
-  # OPTIONAL: List of desktop file categories to skip during export.
-  # If omitted or empty, all valid .desktop files will be exported.
-  # Example: Skip terminal emulators and system tools for this container.
   skip_categories:
     - "TerminalEmulator"
     - "System"
     - "Utility" 
-    # - "Development"
+  # aliases: # Optional
+
+# --- Permissions ---
+permissions:
+  # Standard permissions for an office suite
+  network: true       # Needed for templates, updates, cloud connectors
+  bluetooth: false    # Unlikely needed
+  gpu: true           # Required for rendering
+  sound: true         # Needed for accessibility, maybe presentations
+  webcam: false       # Unlikely needed
+  microphone: false   # Unlikely needed
+  printers: true      # Often needed for an office suite
+  system_dbus: true   # Recommended for portal integration, themes
+  devices: []

@@ -1,4 +1,5 @@
-# version: 1
+# Configuration for Firefox ESR
+version: 1
 
 # --- Application Metadata ---
 app_name: "Firefox ESR"
@@ -6,30 +7,37 @@ container_name: "debox-firefox"
 
 # --- Container Image Definition ---
 image:
-  # We use the same stable Debian base
   base: "debian:latest"
-  
-  # No external repositories are needed for Firefox ESR
   repositories:
-
-  # Install Firefox's Extended Support Release and the Polish language pack
   packages:
     - "firefox-esr"
     - "firefox-esr-l10n-pl"
-    - "libpulse0" # For audio
-    # --- ADD FONT PACKAGES ---
-    - "fonts-cantarell" # The default GNOME UI font
-    - "fonts-liberation2" # Good substitutes for Times, Arial, Courier
-    - "fonts-noto-core" # Google Noto fonts (very comprehensive)
-    - "fonts-dejavu-core" # Another popular, high-quality font set
-    - "fontconfig" # Ensure font configuration utility is present
-    - "libfontconfig1" # Ensure the core library is present
+    - "libpulse0"
+    - "fonts-noto-core"
+    - "fonts-dejavu-core"
+    - "fonts-cantarell"
+    - "fonts-liberation2"
+    - "fontconfig"
+    - "libfontconfig1"
+    - "libcanberra-gtk3-module" # Reduces GTK warnings
 
 # --- Runtime Environment Configuration ---
 runtime:
-  # We need full desktop integration for the browser
-  desktop_integration: true
-
-  # We will mount the host's Downloads directory
+  desktop_integration: true # Implies GPU/Sound needed by default
   volumes:
     - "~/Pobrane:/home/marcin/Pobrane"
+  # skip_categories: # Optional
+  # aliases: # Optional
+
+# --- Permissions ---
+permissions:
+  # Standard permissions for a web browser
+  network: true        # Required
+  bluetooth: false     # Unlikely needed
+  gpu: true            # Required for rendering
+  sound: true          # Required for playback
+  webcam: false        # Grant only if video conferencing needed via Portals
+  microphone: false    # Grant only if audio input needed via Portals
+  printers: false      # Unlikely needed
+  system_dbus: true    # Recommended for portal integration, themes etc.
+  devices: []
