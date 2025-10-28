@@ -3,7 +3,7 @@ version: 1
 
 # --- Application Metadata ---
 app_name: "Visual Studio Code"
-container_name: "debox-vscode" # Keep this unique if creating multiple instances
+container_name: "debox-vscode" 
 
 # --- Container Image Definition ---
 image:
@@ -17,36 +17,40 @@ image:
     - "git"
     - "build-essential"
     - "podman"
-    - "python3" # Keep alive script
-    - "locales" # Keep alive script locale fix? (might remove later)
-    # Add other common dev tools as needed: nodejs, etc.
-    - "libpulse0" # May be needed by extensions or accessibility
+    - "python3" 
+    - "locales" 
+    - "libpulse0" 
     - "fontconfig"
     - "libfontconfig1"
 
-# --- Runtime Environment Configuration ---
-runtime:
-  desktop_integration: true
+# --- Storage Configuration ---
+storage:
   volumes:
     - "~/Repozytoria:/home/marcin/Repozytoria"
+
+# --- Runtime Process Configuration ---
+runtime:
   prepend_exec_args:
     - "--ozone-platform=wayland"
-    # - "--no-sandbox" # Add back if Ozone flag alone isn't enough
+    # - "--no-sandbox" 
+
+# --- Desktop Integration Configuration ---
+integration:
+  desktop_integration: true
   skip_categories:
     - "TerminalEmulator"
     - "System"
   aliases:
-    "code": "code-devbox" # Example alias
+    "code": "code-devbox" 
 
 # --- Permissions ---
 permissions:
-  # Standard permissions for a development environment
-  network: true       # Required for extensions, git, etc.
-  bluetooth: false    # Unlikely needed
-  gpu: true           # Required for rendering
-  sound: true         # May be needed for accessibility features
-  webcam: false       # Unlikely needed
-  microphone: false   # Unlikely needed
-  printers: false     # Unlikely needed
-  system_dbus: true   # Recommended for portal integration
+  network: true
+  bluetooth: false
+  gpu: true
+  sound: true 
+  webcam: false
+  microphone: false
+  printers: false
+  system_dbus: true
   devices: []

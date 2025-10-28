@@ -24,20 +24,24 @@ def add_desktop_integration(config: dict):
     Finds .desktop files, exports icons, modifies files, creates aliases, updates caches.
     """
     container_name = config['container_name']
+    
+    integration_cfg = config.get('integration', {}) 
+    alias_map = integration_cfg.get('aliases', {})
+    skip_categories_set = set(integration_cfg.get('skip_categories', []))
+    desktop_integration_enabled = integration_cfg.get('desktop_integration', True) # Check flag
+    
     desktop_files_processed = 0
     icons_were_copied = False
-
-    # --- Get alias map from config ---
-    alias_map = config.get('runtime', {}).get('aliases', {})
-
-    # --- Set to store unique base commands found ---
     unique_base_commands = set()
 
     print("--- Starting Desktop Integration ---")
 
+    if not desktop_integration_enabled:
+        print("-> Desktop integration explicitly disabled in config. Skipping.")
+        return # Skip the whole process if disabled
+
     # --- Get skip_categories from config ---
     # Read the list from the YAML, default to an empty list if not specified
-    skip_categories_set = set(config.get('runtime', {}).get('skip_categories', []))
     if skip_categories_set:
         print(f"-> Will skip exporting .desktop files with categories: {list(skip_categories_set)}")
     else:
@@ -75,7 +79,8 @@ def add_desktop_integration(config: dict):
         all_icon_names_to_export = set()
         parsed_data = [] # Stores tuples: (original_path, parser_obj)
 
-        # --- 2. Loop 1: Parse files, gather icons, store original Exec ---
+        # --- 2. Loop 1: Parse files, gather icons & base commands ---
+        print("-> Processing .desktop files...")
         for desktop_path_in_container in found_desktop_paths:
             try:
                 print(f"--> Processing: {desktop_path_in_container}")
@@ -177,7 +182,7 @@ def add_desktop_integration(config: dict):
                          print(f"--> Warning: Could not parse/modify Exec='{original_exec}' in section [{section_name}] of {original_filename}: {e}")
                          # Keep original Exec line if modification fails
                 
-                # Prefix Icon name (remains the same)
+                # Prefix Icon name
                 original_icon_name = section.get('Icon')
                 if original_icon_name:
                     prefixed_icon_name = f"{container_name}_{original_icon_name}"
@@ -261,7 +266,7 @@ def _create_alias_script(alias_name: str, container_name: str, base_command: str
     local_bin_dir.mkdir(parents=True, exist_ok=True)
     alias_path = local_bin_dir / alias_name
 
-    # --- UPDATED SCRIPT CONTENT ---
+    # --- SCRIPT CONTENT ---
     # Calls 'debox run' with the container, '--', the original base command,
     # and forwards all arguments received by the alias script ("$@").
     script_content = f"""#!/bin/sh
@@ -276,9 +281,9 @@ debox run {container_name} -- {base_command} "$@"
         with open(alias_path, 'w') as f:
             f.write(script_content)
         os.chmod(alias_path, 0o755) # Make it executable
-        # print(f"--> Created/Updated alias script: {alias_path}") # Keep print inside the loop later
     except Exception as e:
         print(f"--> Warning: Failed to create alias script {alias_path}: {e}")
+        raise
 
 def _export_icons(container_name: str, icon_names: list[str]) -> bool:
     """
@@ -362,26 +367,27 @@ def remove_desktop_integration(container_name: str, config: dict):
     Public function to handle the removal of all desktop integration components:
     .desktop files, icons, and alias scripts. Updates host caches afterwards.
     """
-    print(f"-> Removing desktop integration for container: {container_name}")
+    print(f"--- Removing Desktop Integration for {container_name} ---")
     desktop_files_removed_count = 0
     icon_removed_count = 0
     aliases_removed_count = 0
     
     # Get alias map from config (needed to find correct alias scripts)
-    alias_map = config.get('runtime', {}).get('aliases', {}) if config else {}
+    integration_cfg = config.get('integration', {}) if config else {}
+    alias_map = integration_cfg.get('aliases', {})
     commands_found_in_desktop = set() # Store commands to find aliases later
 
     try:
         # --- Remove .desktop files by prefix AND collect commands ---
         desktop_prefix = f"{container_name}_*.desktop"
         desktop_pattern = str(config_utils.DESKTOP_FILES_DIR / desktop_prefix)
-        print(f"--> Searching for desktop files matching: {desktop_pattern}")
+        print(f"-> Searching for desktop files matching: {desktop_pattern}")
         
         found_desktop_files = glob.glob(desktop_pattern)
         for desktop_path_str in found_desktop_files:
             desktop_path = Path(desktop_path_str)
             if desktop_path.is_file():
-                print(f"--> Processing for alias extraction: {desktop_path}")
+                print(f"-> Processing for alias extraction: {desktop_path}")
                 try:
                     # Parse desktop file BEFORE removing to find Exec command
                     temp_parser = configparser.ConfigParser(interpolation=None)
@@ -402,16 +408,16 @@ def remove_desktop_integration(container_name: str, config: dict):
                                 print(f"    Warning: Could not parse Exec line: {exec_line}")
                     
                     # Remove the .desktop file
-                    print(f"--> Removing desktop file: {desktop_path}")
+                    print(f"-> Removing desktop file: {desktop_path}")
                     desktop_path.unlink()
                     desktop_files_removed_count += 1
                     
                 except Exception as e: 
-                    print(f"--> Warning: Could not process or remove desktop file {desktop_path}: {e}")
+                    print(f"-> Warning: Could not process or remove desktop file {desktop_path}: {e}")
 
         # --- Remove icon files by prefix ---
         icon_prefix_pattern = f"{container_name}_*.*" 
-        print(f"--> Searching for icon files starting with '{container_name}_'...")
+        print(f"-> Searching for icon files starting with '{container_name}_'...")
         user_icon_dir = Path(os.path.expanduser("~/.local/share/icons"))
         user_pixmap_dir = Path(os.path.expanduser("~/.local/share/pixmaps"))
 
@@ -424,7 +430,7 @@ def remove_desktop_integration(container_name: str, config: dict):
                         icon_path.unlink()
                         icon_removed_count += 1
                     except OSError as e:
-                        print(f"--> Warning: Could not remove icon {icon_path}: {e}")
+                        print(f"-> Warning: Could not remove icon {icon_path}: {e}")
         
         # Search pixmaps dir
         if user_pixmap_dir.is_dir():
@@ -435,53 +441,54 @@ def remove_desktop_integration(container_name: str, config: dict):
                          icon_path.unlink()
                          icon_removed_count += 1
                      except OSError as e:
-                         print(f"--> Warning: Could not remove icon {icon_path}: {e}")
+                         print(f"-> Warning: Could not remove icon {icon_path}: {e}")
 
         # --- Remove Alias Scripts ---
         # Note: Logic simplifies - we remove aliases found in Exec lines directly
-        print("--> Removing associated alias scripts...")
+        print("-> Removing associated alias scripts...")
         local_bin_dir = Path(os.path.expanduser("~/.local/bin"))
         
         if not commands_found_in_desktop:
-             print("---> No potential aliases identified from removed .desktop files.")
+             print("--> No potential aliases identified from removed .desktop files.")
         elif not local_bin_dir.is_dir():
-             print(f"---> Warning: Local bin directory not found: {local_bin_dir}.")
+             print(f"--> Warning: Local bin directory not found: {local_bin_dir}.")
         else:
-            print(f"---> Aliases identified for potential removal: {list(commands_found_in_desktop)}")
+            print(f"--> Aliases identified for potential removal: {list(commands_found_in_desktop)}")
             for alias_name in commands_found_in_desktop: # Now contains actual alias names
                 alias_path = local_bin_dir / alias_name
                 if alias_path.is_file():
                     # Optional safety check: verify script content
-                    print(f"---> Found and removing alias script: {alias_path}")
+                    print(f"--> Found and removing alias script: {alias_path}")
                     try:
                         alias_path.unlink()
                         aliases_removed_count += 1
                     except OSError as e:
-                        print(f"---> Warning: Could not remove alias script {alias_path}: {e}")
+                        print(f"--> Warning: Could not remove alias script {alias_path}: {e}")
                 #else:
                 #    print(f"---> Alias script not found: {alias_path}")
 
 
         # --- Update Caches ---
         if desktop_files_removed_count > 0:
-            print("--> Updating desktop application database...")
+            print("-> Updating desktop application database...")
             try: 
                 podman_utils.run_command(["update-desktop-database", str(config_utils.DESKTOP_FILES_DIR)])
             except Exception as db_e:
                  print(f"Warning: Failed to update desktop database: {db_e}")
 
         if icon_removed_count > 0:
-            print(f"--> Removed {icon_removed_count} icon file(s).")
-            print("--> Updating icon cache...")
+            print(f"-> Removed {icon_removed_count} icon file(s).")
+            print("-> Updating icon cache...")
             try:
                 podman_utils.run_command(["gtk-update-icon-cache", "-f", "-t", str(user_icon_dir)])
             except Exception as cache_e:
                  print(f"Warning: Failed to update icon cache: {cache_e}")
         else:
-            print("--> No icon files found or removed.")
+            print("-> No icon files found or removed.")
             
         if aliases_removed_count > 0:
-             print(f"--> Removed {aliases_removed_count} alias script(s).")
+             print(f"-> Removed {aliases_removed_count} alias script(s).")
 
+        print("--- Desktop Integration Removal Complete ---")
     except Exception as e:
         print(f"Warning: Error during desktop integration cleanup for {container_name}: {e}")

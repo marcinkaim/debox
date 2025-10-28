@@ -16,23 +16,23 @@ def run_app(container_name: str, app_command_and_args: list[str]):
     # Check if a command was actually provided after '--'
     if not app_command_and_args:
         print(f"Error: No command provided to run in container '{container_name}'.")
-        print("   Usage from .desktop: debox run <container_name> -- <command_to_run> [args...]")
+        print("   Usage: debox run <container_name> -- <command_to_run> [args...]")
         return
 
     try:
         host_user = getpass.getuser()
         print(f"-> Running as user: {host_user}")
 
-        # Load config to get additional arguments
+        # Load config to get prepend_exec_args from the 'runtime' section
         config = {}
         try:
             config_path = config_utils.get_app_config_dir(container_name, create=False) / "config.yml"
             if config_path.is_file():
                 config = config_utils.load_config(config_path)
             else:
-                 print(f"Warning: Configuration file not found at {config_path}. Cannot load additional arguments.")
+                 print(f"Warning: Config file not found {config_path}. Cannot load prepend_exec_args.")
         except Exception as e:
-             print(f"Warning: Error loading config {config_path}. Cannot load additional arguments. Error: {e}")
+             print(f"Warning: Error loading config {config_path}. Cannot load prepend_exec_args. Error: {e}")
 
         # --- Get additional args from YAML ---
         prepend_args = config.get('runtime', {}).get('prepend_exec_args', [])
@@ -50,10 +50,10 @@ def run_app(container_name: str, app_command_and_args: list[str]):
             "--user", host_user,
             container_name,
             # --- Assemble the command correctly ---
-            original_command          # e.g., 'code' or 'libreoffice'
+            original_command          # e.g., '/usr/bin/libreoffice' or 'code'
         ]
         exec_command.extend(prepend_args) # Add args from YAML (e.g., --ozone...)
-        exec_command.extend(original_runtime_args) # Add args from .desktop (e.g., %F -> file path)
+        exec_command.extend(original_runtime_args) # Add args from .desktop/CLI (e.g., --writer, file path)
 
         print(f"-> Executing command: {' '.join(exec_command)}") 
         

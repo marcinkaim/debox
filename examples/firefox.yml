@@ -19,25 +19,34 @@ image:
     - "fonts-liberation2"
     - "fontconfig"
     - "libfontconfig1"
-    - "libcanberra-gtk3-module" # Reduces GTK warnings
+    - "libcanberra-gtk3-module"
+    - "python3" # Keep alive script
+    - "locales" # Locale generation
 
-# --- Runtime Environment Configuration ---
-runtime:
-  desktop_integration: true # Implies GPU/Sound needed by default
+# --- Storage Configuration ---
+storage:
   volumes:
     - "~/Pobrane:/home/marcin/Pobrane"
-  # skip_categories: # Optional
-  # aliases: # Optional
+
+# --- Runtime Process Configuration ---
+runtime:
+  # No specific runtime args needed for Firefox
+  prepend_exec_args: []
+
+# --- Desktop Integration Configuration ---
+integration:
+  desktop_integration: true
+  # skip_categories: [] # Optional
+  # aliases: {} # Optional
 
 # --- Permissions ---
 permissions:
-  # Standard permissions for a web browser
-  network: true        # Required
-  bluetooth: false     # Unlikely needed
-  gpu: true            # Required for rendering
-  sound: true          # Required for playback
-  webcam: false        # Grant only if video conferencing needed via Portals
-  microphone: false    # Grant only if audio input needed via Portals
-  printers: false      # Unlikely needed
-  system_dbus: true    # Recommended for portal integration, themes etc.
+  network: true
+  bluetooth: false
+  gpu: true
+  sound: true
+  webcam: false
+  microphone: false
+  printers: false
+  system_dbus: true
   devices: []

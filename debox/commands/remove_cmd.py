@@ -13,22 +13,18 @@ def remove_app(container_name: str, purge_home: bool):
     """
     print(f"--- Removing application associated with container: {container_name} ---")
 
-    # --- Find the application's configuration ---
-    app_config_dir = config_utils.get_app_config_dir(container_name, create=False)
-    config_path = app_config_dir / "config.yml"
-    config = None # Initialize config to None
-
-    if not app_config_dir.is_dir() or not config_path.is_file():
-        print(f"Error: Configuration directory or file not found for '{container_name}'.")
-        # Optionally, try cleanup anyway based just on container_name?
-        # For now, we exit if config is missing.
-        return
-    
+    # Load config (still needed for alias map in remove_desktop_integration)
+    config = {} # Default to empty dict
     try:
-        config = config_utils.load_config(config_path)
-        print(f"-> Found configuration for '{container_name}' at {config_path}")
+        app_config_dir = config_utils.get_app_config_dir(container_name, create=False)
+        config_path = app_config_dir / "config.yml"
+        if config_path.is_file():
+            config = config_utils.load_config(config_path)
+            print(f"-> Found configuration for '{container_name}' at {config_path}")
+        else:
+             print(f"Warning: Configuration file not found at {config_path}. Cleanup may be partial.")
     except Exception as e:
-        print(f"Warning: Could not load configuration file {config_path}. Proceeding with cleanup based on name only. Error: {e}")
+        print(f"Warning: Could not load configuration file. Cleanup may be partial. Error: {e}")
 
     try:
         desktop_integration.remove_desktop_integration(container_name, config if config else {})

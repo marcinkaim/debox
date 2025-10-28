@@ -23,31 +23,35 @@ image:
     - "fontconfig"
     - "libfontconfig1"
     - "libcanberra-gtk3-module"
-    - "python3" # Keep alive script
-    - "locales" # Keep alive script locale fix?
+    - "python3" 
+    - "locales" 
 
-# --- Runtime Environment Configuration ---
-runtime:
-  desktop_integration: true
+# --- Storage Configuration ---
+storage:
   volumes:
     - "~/Dokumenty:/home/marcin/Dokumenty"
     - "~/Pobrane:/home/marcin/Pobrane"
     - "~/Szablony:/home/marcin/Szablony"
-  skip_categories:
+
+# --- Runtime Process Configuration ---
+runtime:
+  prepend_exec_args: []
+
+# --- Desktop Integration Configuration ---
+integration:
+  desktop_integration: true
+  skip_categories: 
     - "TerminalEmulator"
     - "System"
-    - "Utility" 
-  # aliases: # Optional
 
 # --- Permissions ---
 permissions:
-  # Standard permissions for an office suite
-  network: true       # Needed for templates, updates, cloud connectors
-  bluetooth: false    # Unlikely needed
-  gpu: true           # Required for rendering
-  sound: true         # Needed for accessibility, maybe presentations
-  webcam: false       # Unlikely needed
-  microphone: false   # Unlikely needed
-  printers: true      # Often needed for an office suite
-  system_dbus: true   # Recommended for portal integration, themes
+  network: true
+  bluetooth: false
+  gpu: true
+  sound: true 
+  webcam: false
+  microphone: false
+  printers: true 
+  system_dbus: true
   devices: []
