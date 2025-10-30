@@ -58,3 +58,121 @@ def get_app_home_dir(container_name: str, create: bool = True) -> Path:
     if create:
         home_dir.mkdir(parents=True, exist_ok=True)
     return home_dir
+
+def save_config(config: dict, config_path: Path):
+    """
+    Saves a configuration dictionary back to a YAML file.
+    """
+    try:
+        with open(config_path, 'w') as f:
+            yaml.dump(config, f, sort_keys=False, default_flow_style=False)
+        print(f"-> Configuration saved to {config_path}")
+    except Exception as e:
+        print(f"❌ Error saving configuration to {config_path}: {e}")
+        raise
+
+def _convert_type(value_str: str):
+    """
+    Naively converts "true"/"false" strings to booleans.
+    """
+    val_lower = value_str.lower()
+    if val_lower == 'true':
+        return True
+    if val_lower == 'false':
+        return False
+    # Could add int/float conversion, but string is safest for now
+    return value_str
+
+def update_config_value(config: dict, path_str: str, action: str, value_str: str):
+    """
+    Navigates a config dict using a dot-notation path and applies an action.
+    This function modifies the 'config' dictionary in-place.
+    It creates nested dictionaries if they don't exist for 'set' actions.
+    """
+    keys = path_str.split('.')
+    parent = config
+    
+    # Traverse/create path up to the *parent* of the final key
+    for key in keys[:-1]:
+        # If we are setting a value, create dictionaries if they don't exist
+        if action in ('set', 'add', 'set_map'):
+            # setdefault is perfect: it gets the key, or creates it if not found
+            parent = parent.setdefault(key, {}) 
+            if not isinstance(parent, dict):
+                 # This handles config errors, e.g., trying 'integration.aliases.foo:bar'
+                 # when 'integration.aliases' is a list, not a dict.
+                 raise TypeError(f"Path conflict: '{key}' in '{path_str}' exists but is not a dictionary.")
+        else:
+            # If we are removing/unsetting, the path MUST exist
+            parent = parent.get(key)
+            if not isinstance(parent, dict):
+                 raise KeyError(f"Invalid path: Section '{key}' not found or not a dictionary in '{path_str}'.")
+
+    final_key = keys[-1]
+
+    # --- Handle actions on the final_key ---
+
+    if action == 'set':
+        # Simple value replacement, creates key if not exists
+        typed_value = _convert_type(value_str)
+        parent[final_key] = typed_value
+        print(f"  - Set: {path_str} = {typed_value}")
+    
+    elif action == 'add':
+        # Add to a list, creates list if not exists
+        target_list = parent.setdefault(final_key, []) # Get list or create new empty list
+        if isinstance(target_list, list):
+            typed_value = _convert_type(value_str)
+            target_list.append(typed_value)
+            print(f"  - Added: {value_str} to {path_str}")
+        else:
+            raise TypeError(f"Cannot 'add' to non-list key: {path_str}")
+            
+    elif action == 'remove':
+        # Remove from an *existing* list
+        target_list = parent.get(final_key) # Must exist
+        if target_list is None:
+            raise KeyError(f"Invalid path: List '{final_key}' not found in section '{'.'.join(keys[:-1])}'.")
+        if isinstance(target_list, list):
+            typed_value = _convert_type(value_str)
+            try:
+                target_list.remove(typed_value)
+            except ValueError:
+                try:
+                    target_list.remove(value_str) # Fallback to raw string
+                except ValueError:
+                     raise ValueError(f"Value '{value_str}' not found in list {path_str}")
+            print(f"  - Removed: {value_str} from {path_str}")
+        else:
+            raise TypeError(f"Cannot 'remove' from non-list key: {path_str}")
+            
+    elif action == 'set_map':
+        # Set a key-value pair in a dictionary, creates dict if not exists
+        target_map = parent.setdefault(final_key, {}) # Get map or create new empty map
+        if not isinstance(target_map, dict):
+             raise TypeError(f"Cannot 'set_map' on non-dict key: {path_str}")
+        try:
+            k, v = value_str.split('=', 1)
+        except ValueError:
+            raise ValueError("Invalid map format. Expected 'key=value'.")
+        target_map[k.strip()] = v.strip() # Store value as string
+        print(f"  - Set Map: {path_str}.{k.strip()} = {v.strip()}")
+            
+    elif action == 'unset_map':
+        # Remove a key from an *existing* dictionary
+         target_map = parent.get(final_key) # Must exist
+         if target_map is None:
+            raise KeyError(f"Invalid path: Map '{final_key}' not found in section '{'.'.join(keys[:-1])}'.")
+         if isinstance(target_map, dict):
+            try:
+                del target_map[value_str]
+                print(f"  - Unset Map: Removed key {value_str} from {path_str}")
+            except KeyError:
+                raise KeyError(f"Key '{value_str}' not found in map {path_str}")
+         else:
+            raise TypeError(f"Cannot 'unset_map' on non-dict key: {path_str}")
+    
+    else:
+         raise ValueError(f"Unknown action: '{action}'")
+
+    return config # Return modified config

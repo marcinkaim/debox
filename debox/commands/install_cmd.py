@@ -2,7 +2,7 @@
 
 from pathlib import Path
 import shutil
-from debox.core import config as config_utils, container_ops
+from debox.core import config as config_utils, container_ops, hash_utils
 from debox.core import podman_utils
 from debox.core import desktop_integration
 
@@ -73,5 +73,17 @@ def install_app(config_path: Path):
          print(f"Error during desktop integration: {e}")
          # Consider cleanup: remove container/image? For now, just exit.
          return
+
+    # --- Finalize installation by saving state ---
+    try:
+        print("-> Finalizing installation state...")
+        # Calculate the hashes of the config we just installed
+        current_hashes = hash_utils.calculate_hashes(config)
+        # Save them as the "last applied" state
+        hash_utils.save_last_applied_hashes(app_config_dir, current_hashes)
+        # Remove the 'dirty' flag, since we are now in sync
+        hash_utils.remove_needs_apply_flag(app_config_dir)
+    except Exception as e:
+        print(f"Warning: Could not finalize installation state: {e}")
 
     print("\n✅ Installation complete!")

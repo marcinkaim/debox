@@ -6,7 +6,15 @@ from pathlib import Path
 
 # Import the modules that will contain the logic for each command.
 # We will create these files in the next steps.
-from .commands import install_cmd, remove_cmd, list_cmd, run_cmd, safe_prune_cmd
+from .commands import (
+    install_cmd, 
+    remove_cmd, 
+    list_cmd, 
+    run_cmd, 
+    safe_prune_cmd, 
+    configure_cmd,
+    apply_cmd
+)
 
 # Create the main Typer application object.
 # This object will manage all our commands.
@@ -67,6 +75,27 @@ def safe_prune(
     EXCEPT for those managed by debox (labeled 'debox.managed=true').
     """
     safe_prune_cmd.prune_resources(force)
+
+@app.command()
+def configure(
+    container_name: Annotated[str, typer.Argument(help="The unique container name to configure (e.g., 'debox-firefox').")],
+    config_updates: Annotated[list[str], typer.Argument(help="Configuration updates in 'section.key:value' or 'section.key:action:value' format.")]
+):
+    """
+    Modifies the configuration for an installed application.
+    Changes must be applied with 'debox apply'.
+    """
+    configure_cmd.configure_app(container_name, config_updates)
+
+@app.command()
+def apply(
+    container_name: Annotated[str, typer.Argument(help="The unique container name to apply changes to.")]
+):
+    """
+    Applies any pending configuration changes made via 'debox configure'.
+    This may rebuild the image and/or recreate the container.
+    """
+    apply_cmd.apply_changes(container_name)
 
 if __name__ == "__main__":
     app()
