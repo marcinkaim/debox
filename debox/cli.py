@@ -13,7 +13,8 @@ from .commands import (
     run_cmd, 
     safe_prune_cmd, 
     configure_cmd,
-    apply_cmd
+    apply_cmd,
+    network_cmd
 )
 
 # Create the main Typer application object.
@@ -96,6 +97,29 @@ def apply(
     This may rebuild the image and/or recreate the container.
     """
     apply_cmd.apply_changes(container_name)
+
+network_app = typer.Typer(help="Statically configure container network access (requires container recreate).")
+app.add_typer(network_app, name="network")
+
+@network_app.command("allow")
+def network_allow(
+    container_name: Annotated[str, typer.Argument(help="The unique container name to reconfigure.")]
+):
+    """
+    Sets 'permissions.network: true' in config and applies the change.
+    This will recreate the container.
+    """
+    network_cmd.allow_network(container_name)
+
+@network_app.command("deny")
+def network_deny(
+    container_name: Annotated[str, typer.Argument(help="The unique container name to reconfigure.")]
+):
+    """
+    Sets 'permissions.network: false' in config and applies the change.
+    This will recreate the container.
+    """
+    network_cmd.deny_network(container_name)
 
 if __name__ == "__main__":
     app()

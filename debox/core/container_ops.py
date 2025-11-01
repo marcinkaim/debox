@@ -89,9 +89,13 @@ def _generate_podman_flags(config: dict) -> list[str]:
     print("   Applying permissions:")
 
     # Network
-    net_perm = permissions.get('network', True)
-    if not net_perm: flags.append("--network=none"); print("     - Network: Disabled")
-    else: print("     - Network: Enabled (default)")
+    net_perm = permissions.get('network', True) 
+    if not net_perm:
+        flags.append("--network=none")
+        print("     - Network: Disabled")
+    else:
+        flags.append("--network=default")
+        print("     - Network: Enabled (connected to 'default' CNI bridge)")
 
     # System D-Bus
     sys_dbus_perm = permissions.get('system_dbus', True)
