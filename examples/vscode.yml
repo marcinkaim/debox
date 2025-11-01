@@ -30,6 +30,7 @@ storage:
 
 # --- Runtime Process Configuration ---
 runtime:
+  default_exec: "code"
   prepend_exec_args:
     - "--ozone-platform=wayland"
     # - "--no-sandbox" 
