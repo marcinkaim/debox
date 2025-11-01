@@ -67,7 +67,6 @@ def install_app(config_path: Path):
 
     # --- 5. Add Desktop Integration ---
     try:
-        print("--- Starting desktop integration step ---")
         desktop_integration.add_desktop_integration(config)
     except Exception as e:
          print(f"Error during desktop integration: {e}")

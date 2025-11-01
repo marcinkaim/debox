@@ -30,7 +30,7 @@ storage:
 
 # --- Runtime Process Configuration ---
 runtime:
-  default_exec: "/usr/lib/firefox-esr/firefox-esr"
+  default_exec: "firefox-esr"
   prepend_exec_args: []
 
 # --- Desktop Integration Configuration ---
