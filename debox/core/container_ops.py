@@ -25,6 +25,19 @@ def _generate_containerfile(config: dict, host_user: str, host_uid: int, host_lo
     lines.append(f"ARG HOST_UID={host_uid}")
     lines.append(f"ARG HOST_LOCALE={host_locale}")
     lines.append("ENV DEBIAN_FRONTEND=noninteractive")
+
+    image_cfg = config.get('image', {})
+
+    components = image_cfg.get('debian_components', [])
+    if components:
+        components_str = " ".join(components)
+        print(f"-> Enabling Debian components: {components_str}")
+        lines.append(
+            f"RUN sed -i -e 's/ main/ main {components_str}/g' /etc/apt/sources.list.d/debian.sources"
+        )
+    else:
+        print("-> No additional Debian components requested.")
+
     lines.append("RUN apt-get update && apt-get install -y wget gpg sudo locales python3 && apt-get clean")
 
     # Locale generation
@@ -33,23 +46,43 @@ def _generate_containerfile(config: dict, host_user: str, host_uid: int, host_lo
     lines.append(f"ENV LANG=$HOST_LOCALE")
 
     # Handle repositories
-    if config.get('image', {}).get('repositories'):
-        for repo in config['image']['repositories']:
-            key_path = repo.get('key_path')
-            key_url = repo.get('key_url')
+    repo_list = image_cfg.get('repositories', [])
+    if repo_list:
+        repo_counter = 0
+        for repo in repo_list:
             repo_string = repo.get('repo_string')
-            if not (key_path and key_url and repo_string):
-                 print(f"Warning: Skipping invalid repository entry: {repo}")
-                 continue
-            lines.append(f"RUN mkdir -p $(dirname {key_path})")
-            lines.append(f"RUN wget -qO- {key_url} | gpg --dearmor > {key_path}")
-            lines.append(f"RUN echo \"{repo_string}\" > /etc/apt/sources.list.d/{config['container_name']}.list")
+            if not repo_string:
+                print(f"Warning: Skipping repository entry with no 'repo_string'.")
+                continue
+
+            key_url = repo.get('key_url')
+            key_path = repo.get('key_path')
+            
+            if key_url and key_path:
+                print(f"-> Adding keyed repository: {repo_string}")
+                lines.append(f"RUN mkdir -p $(dirname {key_path})")
+                lines.append(f"RUN wget -qO- {key_url} | gpg --dearmor > {key_path}")
+            else:
+                print(f"-> Adding keyless repository: {repo_string}")
+            
+            list_filename = repo.get('list_filename', f"debox-repo-{repo_counter}.list")
+            lines.append(f"RUN echo \"{repo_string}\" > /etc/apt/sources.list.d/{list_filename}")
+            repo_counter += 1
 
     # Handle package installation
-    packages_to_install = config.get('image', {}).get('packages', [])
+    packages_to_install = image_cfg.get('packages', [])
     if packages_to_install:
         packages_str = " ".join(packages_to_install)
-        lines.append(f"RUN apt-get update && apt-get install -y {packages_str} && apt-get clean")
+        
+        target_release = image_cfg.get('apt_target_release')
+        install_cmd = "apt-get install -y"
+        
+        if target_release:
+            print(f"-> Setting APT target release to: {target_release}")
+            install_cmd += f" -t {target_release}"
+            lines.append(f"RUN echo 'APT::Default-Release \"{target_release}\";' > /etc/apt/apt.conf.d/99debox-target")
+
+        lines.append(f"RUN apt-get update && {install_cmd} {packages_str} && apt-get clean")
 
     # Create the user
     lines.append(f"RUN useradd -m -s /bin/bash -u $HOST_UID $HOST_USER")
