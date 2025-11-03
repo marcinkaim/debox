@@ -6,7 +6,7 @@ import sys
 from debox.core import config as config_utils, container_ops, hash_utils
 from debox.core import podman_utils
 from debox.core import desktop_integration
-from debox.core.log_utils import log_verbose
+from debox.core.log_utils import log_verbose, run_step, console
 
 def install_app(config_path: Path):
     """
@@ -20,7 +20,7 @@ def install_app(config_path: Path):
         container_name = config['container_name']
         app_name = config.get('app_name', container_name)
     except Exception as e:
-        print(f"❌ Error loading configuration {config_path}: {e}")
+        console.print(f"❌ Error loading configuration {config_path}: {e}", style="bold red")
         sys.exit(1)
 
     print(f"--- Installing application: {app_name} ({container_name}) ---")
@@ -28,7 +28,7 @@ def install_app(config_path: Path):
     log_verbose(f"-> Checking status for container '{container_name}'...")
     existing_status = podman_utils.get_container_status(container_name)
     if existing_status != "Not Found" and "error" not in existing_status.lower():
-        print(f"❌ Error: Container '{container_name}' already exists (Status: {existing_status}).")
+        console.print(f"❌ Error: Container '{container_name}' already exists (Status: {existing_status}).", style="bold red")
         print(f"   Use: debox remove {container_name}")
         sys.exit(1)
 
@@ -53,35 +53,32 @@ def install_app(config_path: Path):
         
         print("-> Configuration loaded and prepared.")
     except Exception as e:
-        print(f"Error preparing config directory {app_config_dir}: {e}")
+        console.print(f"❌ Error preparing config directory {app_config_dir}: {e}", style="bold red")
         sys.exit(1)
-    
+
     # 3. Build Image
-    try:
-        print(f"-> Building image... (This may take a while)")
+    with run_step(
+        spinner_message=f"[bold green]Building image 'localhost/{container_name}:latest'...",
+        success_message="-> Image built successfully.",
+        error_message="Error building image",
+    ):
         image_tag = container_ops.build_container_image(config, app_config_dir)
-        print("-> Image built successfully.")
-    except Exception as e:
-        print(f"❌ Error building image: {e}")
-        sys.exit(1)
 
     # 4. Create Container
-    try:
-        log_verbose("-> Creating container instance...")
+    with run_step(
+        spinner_message=f"[bold green]Creating container '{container_name}'...",
+        success_message="-> Container created successfully.",
+        error_message="Error creating container",
+    ):
         container_ops.create_container_instance(config, image_tag)
-        print("-> Container created successfully.")
-    except Exception as e:
-         print(f"❌ Error creating container: {e}")
-         sys.exit(1)
 
     # 5. Add Desktop Integration
-    try:
-        log_verbose("--- Starting desktop integration step ---")
+    with run_step(
+        spinner_message="[bold green]Applying desktop integration...",
+        success_message="-> Desktop integration applied.",
+        error_message="Error during desktop integration",
+    ):
         desktop_integration.add_desktop_integration(config)
-        print("-> Desktop integration applied.")
-    except Exception as e:
-         print(f"❌ Error during desktop integration: {e}")
-         sys.exit(1)
 
     # 6. Finalize installation
     try:

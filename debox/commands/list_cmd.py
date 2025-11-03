@@ -1,28 +1,25 @@
 # debox/commands/list_cmd.py
 
-import os
-from pathlib import Path
-from rich.console import Console
 from rich.table import Table
 
 from debox.core import config as config_utils
 from debox.core import podman_utils
 # --- ADD import for the hash_utils module ---
 from debox.core import hash_utils
+from debox.core.log_utils import log_verbose, run_step, console
 
 def list_installed_apps():
     """
     Lists all applications managed by debox, their container status,
     and their configuration status.
     """
-    console = Console()
     table = Table(title="Debox Managed Applications")
 
     # --- Define table columns (added Config Status) ---
     table.add_column("App Name", style="cyan", no_wrap=True)
     table.add_column("Container Name", style="magenta")
-    table.add_column("Container Status", style="green") # Renamed from "Status"
-    table.add_column("Config Status", style="yellow")   # <-- NEW COLUMN
+    table.add_column("Container Status", style="green")
+    table.add_column("Config Status", style="yellow")
     table.add_column("Base Image", style="blue")
     table.add_column("Config Path", style="dim")
 
@@ -31,16 +28,31 @@ def list_installed_apps():
         console.print(f"No debox applications installed yet (directory not found: {config_utils.DEBOX_APPS_DIR})")
         return
 
-    found_apps = False
-    # Iterate through subdirectories in the apps config directory
-    for app_dir in config_utils.DEBOX_APPS_DIR.iterdir():
-        if not app_dir.is_dir():
-            continue # Skip non-directory files
+    log_verbose("-> Pre-scanning for valid application configs...")
+    app_dirs_list = []
+    try:
+        app_dirs_list = [
+            app_dir for app_dir in config_utils.DEBOX_APPS_DIR.iterdir()
+            if app_dir.is_dir() and (app_dir / "config.yml").is_file()
+        ]
+        total_apps = len(app_dirs_list)
+        log_verbose(f"-> Found {total_apps} application(s).")
+    except Exception as e:
+        console.print(f"❌ Error scanning config directory: {e}", style="bold red")
+        return
 
-        config_path = app_dir / "config.yml"
-        if config_path.is_file():
-            found_apps = True
-            config_status = "[red]Error[/red]" # Default in case of error
+    if total_apps == 0:
+        console.print("No debox applications installed yet.")
+        return
+    
+    with run_step(
+        spinner_message="[bold green]Loading application status...",
+        success_message="",
+        error_message="Error loading application list"
+    ) as status:
+        # Iterate through subdirectories in the apps config directory
+        for i, app_dir in enumerate(app_dirs_list):
+            config_path = app_dir / "config.yml"
             try:
                 # Load the app configuration
                 config = config_utils.load_config(config_path)
@@ -56,7 +68,7 @@ def list_installed_apps():
                 if "run" not in container_status.lower(): # If not 'Running'
                     status_style = "yellow"
                 if "not found" in container_status.lower() or "error" in container_status.lower():
-                     status_style = "red"
+                    status_style = "red"
                 
                 # --- Check Config Status ---
                 # Check for the existence of the .needs_apply flag file
@@ -77,6 +89,7 @@ def list_installed_apps():
                 )
             except Exception as e:
                 # Handle cases where config file might be invalid
+                console.print(f"Warning: Failed to load config {app_dir.name}: {e}", style="yellow")
                 table.add_row(
                     f"Error loading {app_dir.name}",
                     app_dir.name,
@@ -86,10 +99,10 @@ def list_installed_apps():
                     str(config_path),
                     style="on red"
                 )
-                print(f"Warning: Failed to load config for {app_dir.name}: {e}")
+            
+            percent_complete = int(((i + 1) / total_apps) * 100)
+            if status: # status będzie None w trybie verbose
+                status.update(f"[bold green]Loading application status... {percent_complete}%")
 
-    if not found_apps:
-         console.print("No debox applications installed yet.")
-    else:
         # Print the final table
         console.print(table)

@@ -3,7 +3,7 @@
 import sys
 from pathlib import Path
 from debox.core import config as config_utils, hash_utils
-from debox.core.log_utils import log_verbose
+from debox.core.log_utils import log_verbose, console
 
 def configure_app(container_name: str, updates: list[str], silent: bool = False):
     """
@@ -16,12 +16,12 @@ def configure_app(container_name: str, updates: list[str], silent: bool = False)
         # 1. Find and load the config
         app_config_dir = config_utils.get_app_config_dir(container_name, create=False)
         if not app_config_dir.is_dir():
-            print(f"❌ Error: Configuration directory for '{container_name}' not found.")
+            console.print(f"❌ Error: Configuration directory for '{container_name}' not found.", style="bold red")
             sys.exit(1)
             
         config_path = app_config_dir / "config.yml"
         if not config_path.is_file():
-            print(f"❌ Error: config.yml not found for '{container_name}'.")
+            console.print(f"❌ Error: config.yml not found for '{container_name}'.", style="bold red")
             sys.exit(1)
             
         config = config_utils.load_config(config_path)
@@ -54,8 +54,8 @@ def configure_app(container_name: str, updates: list[str], silent: bool = False)
                 config_utils.update_config_value(config, path_str, action, value_str)
                 modified = True
             except (KeyError, TypeError, ValueError) as e:
-                print(f"-> ❌ Error applying update '{update_str}': {e}")
-                print("-> Halting configuration. No changes will be saved.")
+                console.print(f"-> ❌ Error applying update '{update_str}': {e}", style="bold red")
+                console.print("-> Halting configuration. No changes will be saved.")
                 sys.exit(1)
 
         # 3. Save the modified config file
@@ -66,12 +66,12 @@ def configure_app(container_name: str, updates: list[str], silent: bool = False)
             hash_utils.create_needs_apply_flag(app_config_dir)
 
             if not silent:
-                print(f"\n✅ Successfully modified configuration for '{container_name}'.")
-                print(f"   Run 'debox apply {container_name}' to apply changes.")
+                console.print(f"\n✅ Successfully modified configuration for '{container_name}'.")
+                console.print(f"   Run 'debox apply {container_name}' to apply changes.")
         else:
             if not silent:
-                print("-> No updates specified or no changes made.")
+                console.print("-> No updates specified or no changes made.")
 
     except Exception as e:
-        print(f"❌ An unexpected error occurred: {e}")
+        console.print(f"❌ An unexpected error occurred: {e}", style="bold red")
         sys.exit(1)

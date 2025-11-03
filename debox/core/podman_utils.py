@@ -2,10 +2,12 @@
 
 import subprocess
 import json
+import sys
 from typing import Optional, Dict
 from pathlib import Path
 
 from debox.core import state
+from debox.core.log_utils import console
 
 def run_command(command: list[str], input_str: str = None, capture_output: bool = False, check: bool = True, verbose: bool = None):
     """
@@ -46,7 +48,10 @@ def build_image(containerfile_content: str, tag: str, context_dir: Path,
                 build_args: Optional[Dict[str, str]] = None, 
                 labels: Optional[Dict[str, str]] = None): # Add labels param
     """
-    Builds a container image, optionally adding labels.
+    Builds a container image.
+    - In VERBOSE mode, streams all output to console.
+    - In SILENT mode, shows a spinner, logs output to a file, 
+      and prints the log file ONLY if an error occurs.
     """
     command = ["podman", "build", "-f", "-", "-t", tag]
 
@@ -61,16 +66,47 @@ def build_image(containerfile_content: str, tag: str, context_dir: Path,
     command.append(str(context_dir))
 
     if state.state.verbose:
-        print(f"--> Running build command: {' '.join(command)}")
+        print(f"--> Running build command (verbose): {' '.join(command)}")
+        subprocess.run(
+            command,
+            input=containerfile_content,
+            text=True,
+            check=True,
+            stdout=None,
+            stderr=None
+        )
+    else:
+        log_file_path = context_dir / "build.log"
+        
+        try:
+            with open(log_file_path, 'w') as log_file:
+                process = subprocess.run(
+                    command,
+                    input=containerfile_content,
+                    text=True,
+                    stdout=log_file,
+                    stderr=log_file,
+                    check=False
+                )
+            
+                if process.returncode != 0:
+                    raise subprocess.CalledProcessError(process.returncode, command)
+            
+            log_file_path.unlink()
 
-    process = subprocess.run(
-        command,
-        input=containerfile_content,
-        text=True,
-        check=True,
-        stdout=None,
-        stderr=None
-    )
+        except subprocess.CalledProcessError as e:
+            console.print(f"\n❌ Build failed! (Exit code {e.returncode})", style="bold red")
+            print(f"   Displaying build log from: {log_file_path}\n")
+            print("--- BEGIN BUILD LOG ---")
+            with open(log_file_path, 'r') as log_file:
+                print(log_file.read())
+            print("--- END BUILD LOG ---")
+            #log_file_path.unlink()
+            raise e
+        except Exception as e:
+            print(f"\n❌ An unexpected error occurred during build: {e}")
+            raise e
+
 
 def create_container(name: str, image_tag: str, flags: list[str]):
     """

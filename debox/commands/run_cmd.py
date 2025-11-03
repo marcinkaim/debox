@@ -7,7 +7,7 @@ import shlex
 import sys
 from debox.core import podman_utils, state
 from debox.core import config as config_utils
-from debox.core.log_utils import log_verbose
+from debox.core.log_utils import log_verbose, console
 
 def run_app(container_name: str, app_command_and_args: list[str]):
     """
@@ -26,12 +26,12 @@ def run_app(container_name: str, app_command_and_args: list[str]):
         try:
             config_path = config_utils.get_app_config_dir(container_name, create=False) / "config.yml"
             if not config_path.is_file():
-                print(f"❌ Error: Configuration file not found for '{container_name}'.")
+                console.print(f"❌ Error: Configuration file not found for '{container_name}'.", style="bold red")
                 sys.exit(1) # Critical error, can't proceed
             config = config_utils.load_config(config_path)
         except Exception as e:
-             print(f"❌ Error loading config file {config_path}: {e}")
-             sys.exit(1)
+            console.print(f"❌ Error loading config file {config_path}: {e}", style="bold red")
+            sys.exit(1)
 
         # --- 2. Determine Command to Run ---
         runtime_cfg = config.get('runtime', {})
@@ -51,9 +51,9 @@ def run_app(container_name: str, app_command_and_args: list[str]):
             default_exec_string = runtime_cfg.get('default_exec')
             
             if not default_exec_string:
-                print(f"❌ Error: 'runtime.default_exec' is not defined in config for '{container_name}'.")
-                print("   Please provide a command after '--', e.g.:")
-                print(f"   debox run {container_name} -- <command_to_run>")
+                console.print(f"❌ Error: 'runtime.default_exec' is not defined in config for '{container_name}'.", style="bold red")
+                console.print("   Please provide a command after '--', e.g.:")
+                console.print(f"   debox run {container_name} -- <command_to_run>")
                 return # Exit gracefully
             
             log_verbose(f"-> Using default command from config: '{default_exec_string}'")
@@ -87,9 +87,9 @@ def run_app(container_name: str, app_command_and_args: list[str]):
         log_verbose(f"-> Container '{container_name}' stopped.")
 
     except Exception as e:
-        print(f"An error occurred while trying to run the application: {e}")
+        console.print(f"An error occurred while trying to run the application: {e}", style="bold red")
         try:
             log_verbose(f"-> Attempting to stop container '{container_name}' after error...")
             podman_utils.run_command(["podman", "stop", "--ignore", "--time=2", container_name])
         except Exception as stop_e:
-            print(f"-> Error stopping container after previous error: {stop_e}")
+            console.print(f"-> Error stopping container after previous error: {stop_e}", style="bold red")

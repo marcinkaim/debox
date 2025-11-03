@@ -8,7 +8,7 @@ from debox.core import config as config_utils
 from debox.core import hash_utils
 from debox.core import container_ops
 from debox.core import desktop_integration
-from debox.core.log_utils import log_verbose
+from debox.core.log_utils import log_verbose, run_step, console
 
 def apply_changes(container_name: str, silent: bool = False):
     """
@@ -21,12 +21,12 @@ def apply_changes(container_name: str, silent: bool = False):
         # 1. Load configurations
         app_config_dir = config_utils.get_app_config_dir(container_name, create=False)
         if not app_config_dir.is_dir():
-            print(f"❌ Error: Configuration directory for '{container_name}' not found.")
+            console.print(f"❌ Error: Configuration directory for '{container_name}' not found.", style="bold red")
             sys.exit(1)
             
         config_path = app_config_dir / "config.yml"
         if not config_path.is_file():
-            print(f"❌ Error: config.yml not found for '{container_name}'.")
+            console.print(f"❌ Error: config.yml not found for '{container_name}'.", style="bold red")
             sys.exit(1)
 
         # Load the CURRENT desired state from config.yml
@@ -58,62 +58,77 @@ def apply_changes(container_name: str, silent: bool = False):
             log_verbose("-> Configuration is already up to date.")
             hash_utils.remove_needs_apply_flag(app_config_dir)
             if not silent:
-                print("\n✅ Apply complete. No changes needed.")
+                console.print("\n✅ Apply complete. No changes needed.")
             return
 
         if not silent:
-            print("--- Change detected. Applying updates ---")
+            console.print("--- Change detected. Applying updates ---")
         
         # 3. Execute actions in correct order
         
         # 3a. Remove old desktop integration (must happen before container is destroyed)
         if do_reintegrate:
-            log_verbose("-> Removing old desktop integration...")
-            # Pass the SAVED config (or empty dict) in case old alias names are needed
-            # Note: Our remove logic is smart and uses file prefixes, so this is robust
-            desktop_integration.remove_desktop_integration(container_name, {}) 
-            if not silent:
-                print("-> Desktop integration removed.")
+            with run_step(
+                spinner_message="Removing old desktop integration...",
+                success_message="-> Desktop integration removed." if not silent else "",
+                error_message="Error removing old desktop integration"
+            ):
+                desktop_integration.remove_desktop_integration(container_name, current_config)
 
         # 3b. Remove old container
         if do_recreate:
-            log_verbose("-> Removing old container instance...")
-            container_ops.remove_container_instance(container_name)
-            if not silent:
-                print("-> Container instance removed.")
+            with run_step(
+                spinner_message="Removing old container instance...",
+                success_message="-> Container instance removed." if not silent else "",
+                error_message="Error removing container instance"
+            ):
+                container_ops.remove_container_instance(container_name)
 
         # 3c. Rebuild image (if needed)
         image_tag = f"localhost/{container_name}:latest" # Default tag
         if do_rebuild:
-            if not silent:
-                print("-> Rebuilding container image... (This may take a while)")
-            # Remove old image
-            container_ops.remove_container_image(container_name)
+            with run_step(
+                spinner_message="Removing old container image...",
+                success_message="-> Old container image removed." if not silent else "",
+                error_message="Error removing old image"
+            ):
+                container_ops.remove_container_image(container_name)
             
             # Copy keep_alive script (this logic must be present, same as install)
-            current_dir = Path(__file__).parent
-            keep_alive_script_src = current_dir.parent / "core" / "keep_alive.py"
-            if keep_alive_script_src.is_file():
-                shutil.copy(keep_alive_script_src, app_config_dir / "keep_alive.py")
+            log_verbose("-> Copying keep_alive.py to build context...")
+            try:
+                current_dir = Path(__file__).parent
+                keep_alive_script_src = current_dir.parent / "core" / "keep_alive.py"
+                if keep_alive_script_src.is_file():
+                    shutil.copy(keep_alive_script_src, app_config_dir / "keep_alive.py")
+            except Exception as e:
+                 console.print(f"Warning: Failed to copy keep_alive.py: {e}", style="yellow")
             
             # Build the new image
-            image_tag = container_ops.build_container_image(current_config, app_config_dir)
-            if not silent:
-                print("-> Container image rebuilt.")
+            with run_step(
+                spinner_message=f"Building image 'localhost/{container_name}:latest'...",
+                success_message="-> Container image rebuilt." if not silent else "",
+                error_message="Error building image"
+            ):
+                image_tag = container_ops.build_container_image(current_config, app_config_dir)
 
         # 3d. Create new container
         if do_recreate:
-            log_verbose("-> Creating new container instance...")
-            container_ops.create_container_instance(current_config, image_tag)
-            if not silent:
-                print("-> Container instance created.")
+            with run_step(
+                spinner_message="Creating new container instance...",
+                success_message="-> Container instance created." if not silent else "",
+                error_message="Error creating container instance"
+            ):
+                container_ops.create_container_instance(current_config, image_tag)
 
         # 3e. Add new desktop integration
         if do_reintegrate:
-            log_verbose("-> Applying new desktop integration...")
-            desktop_integration.add_desktop_integration(current_config)
-            if not silent:
-                print("-> Desktop integration applied.")
+            with run_step(
+                spinner_message="Applying new desktop integration...",
+                success_message="-> Desktop integration applied." if not silent else "",
+                error_message="Error applying desktop integration"
+            ):
+                desktop_integration.add_desktop_integration(current_config)
 
         # 4. Finalize state
         log_verbose("-> Finalizing new configuration state...")
@@ -121,10 +136,10 @@ def apply_changes(container_name: str, silent: bool = False):
         hash_utils.remove_needs_apply_flag(app_config_dir)
 
         if not silent:
-            print("\n✅ Apply complete. Changes have been applied.")
+            console.print("\n✅ Apply complete. Changes have been applied.")
 
     except Exception as e:
-        print(f"❌ An unexpected error occurred during apply: {e}")
+        console.print(f"❌ An unexpected error occurred during apply: {e}")
         # Mark as still needing apply
         if 'app_config_dir' in locals():
             hash_utils.create_needs_apply_flag(app_config_dir)

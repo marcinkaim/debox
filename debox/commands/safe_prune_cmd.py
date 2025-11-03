@@ -3,7 +3,7 @@
 import subprocess
 import typer # For confirmation prompt
 from debox.core import podman_utils
-from debox.core.log_utils import log_verbose
+from debox.core.log_utils import log_verbose, console
 
 # The label used to identify debox-managed resources
 DEBOX_LABEL_FILTER = "label!=debox.managed=true"
@@ -17,8 +17,8 @@ def prune_resources(force: bool):
 
     # --- 1. Handle Confirmation ---
     if not force:
-        print(f"This will remove all unused Podman data (containers, images, networks, volumes)")
-        print(f"EXCEPT those with the label 'debox.managed=true'.")
+        console.print(f"This will remove all unused Podman data (containers, images, networks, volumes)")
+        console.print(f"EXCEPT those with the label 'debox.managed=true'.")
         # Ask for confirmation. abort=True exits script if user says 'no'.
         typer.confirm("Are you sure you want to continue?", abort=True)
 
@@ -43,10 +43,10 @@ def prune_resources(force: bool):
             stdout=None,
             stderr=None
         ) 
-        print("\n✅ Safe prune operation completed.")
+        console.print("\n✅ Safe prune operation completed.")
     except subprocess.CalledProcessError as e:
         # Ten błąd wystąpi, jeśli podman zwróci kod błędu inny niż 0
-        print(f"\n❌ Error during safe prune operation: {e}")
+        console.print(f"\n❌ Error during safe prune operation: {e}")
     except Exception as e:
         # Inne błędy, np. nie znaleziono 'podman'
-        print(f"\n❌ An unexpected error occurred: {e}")
+        console.print(f"\n❌ An unexpected error occurred: {e}")
