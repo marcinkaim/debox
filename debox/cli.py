@@ -4,6 +4,8 @@ import typer
 from typing_extensions import Annotated
 from pathlib import Path
 
+from debox.core import state
+
 # Import the modules that will contain the logic for each command.
 # We will create these files in the next steps.
 from .commands import (
@@ -17,10 +19,25 @@ from .commands import (
     network_cmd
 )
 
+# --- Create a callback function for the main 'app' ---
+def main_callback(
+    verbose: Annotated[bool, typer.Option(
+        "--verbose", "-v", 
+        help="Show detailed technical log messages."
+    )] = False
+):
+    """
+    Main callback function, executed before any command.
+    Used to set global flags like verbosity.
+    """
+    if verbose:
+        state.state.verbose = True
+
 # Create the main Typer application object.
 # This object will manage all our commands.
 app = typer.Typer(
-    help="A container manager for desktop applications on Debian, powered by Podman."
+    help="A container manager for desktop applications on Debian, powered by Podman.",
+    callback=main_callback
 )
 
 @app.command()

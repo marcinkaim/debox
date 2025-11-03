@@ -3,13 +3,14 @@
 import sys
 from pathlib import Path
 from debox.core import config as config_utils, hash_utils
+from debox.core.log_utils import log_verbose
 
-def configure_app(container_name: str, updates: list[str]):
+def configure_app(container_name: str, updates: list[str], silent: bool = False):
     """
     Loads, modifies, and saves an application's configuration file
     and sets the .needs_apply flag.
     """
-    print(f"--- Configuring application: {container_name} ---")
+    log_verbose(f"--- Configuring application: {container_name} ---")
     
     try:
         # 1. Find and load the config
@@ -26,7 +27,7 @@ def configure_app(container_name: str, updates: list[str]):
         config = config_utils.load_config(config_path)
 
         # 2. Loop through and apply updates in memory
-        print("-> Applying requested changes:")
+        log_verbose("-> Applying requested changes:")
         modified = False
         for update_str in updates:
             try:
@@ -63,13 +64,13 @@ def configure_app(container_name: str, updates: list[str]):
             
             # 4. Create the .needs_apply "dirty" flag
             hash_utils.create_needs_apply_flag(app_config_dir)
-            print("-> Successfully modified configuration.")
-            print("-> Run 'debox list' to see status.")
-            print(f"-> Run 'debox apply {container_name}' to apply changes.")
-        else:
-            print("-> No updates specified.")
 
-        print("\n✅ Configuration complete.")
+            if not silent:
+                print(f"\n✅ Successfully modified configuration for '{container_name}'.")
+                print(f"   Run 'debox apply {container_name}' to apply changes.")
+        else:
+            if not silent:
+                print("-> No updates specified or no changes made.")
 
     except Exception as e:
         print(f"❌ An unexpected error occurred: {e}")

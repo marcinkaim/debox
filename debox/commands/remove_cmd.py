@@ -4,6 +4,7 @@ import shutil
 
 from debox.core import config as config_utils, container_ops
 from debox.core import desktop_integration
+from debox.core.log_utils import log_verbose
 
 def remove_app(container_name: str, purge_home: bool):
     """
@@ -19,7 +20,7 @@ def remove_app(container_name: str, purge_home: bool):
         config_path = app_config_dir / "config.yml"
         if config_path.is_file():
             config = config_utils.load_config(config_path)
-            print(f"-> Found configuration for '{container_name}' at {config_path}")
+            log_verbose(f"-> Found configuration for '{container_name}' at {config_path}")
         else:
              print(f"Warning: Configuration file not found. Cleanup may be partial.")
     except Exception as e:
@@ -29,6 +30,7 @@ def remove_app(container_name: str, purge_home: bool):
     # Needs config for alias map, runs exec commands if needed
     try:
         desktop_integration.remove_desktop_integration(container_name, config)
+        print(f"-> Desktop integration removed.")
     except Exception as e:
          print(f"Warning: An error occurred during desktop integration cleanup: {e}")
 
@@ -38,6 +40,7 @@ def remove_app(container_name: str, purge_home: bool):
         container_ops.remove_container_instance(container_name)
         # Remove the container image
         container_ops.remove_container_image(container_name)
+        print(f"-> Podman container and image removed.")
     except Exception as e:
         print(f"Warning: Error during Podman resource cleanup for {container_name}: {e}")
 
@@ -45,8 +48,8 @@ def remove_app(container_name: str, purge_home: bool):
     try:
         app_config_dir = config_utils.get_app_config_dir(container_name, create=False) # Get path again
         if app_config_dir.is_dir():
-            print(f"-> Removing debox configuration directory: {app_config_dir}")
             shutil.rmtree(app_config_dir)
+            print(f"-> Debox configuration directory removed.")
     except Exception as e:
         print(f"Warning: Error removing configuration directory for {container_name}: {e}")
         
@@ -55,13 +58,13 @@ def remove_app(container_name: str, purge_home: bool):
         try:
             app_home_dir = config_utils.get_app_home_dir(container_name, create=False)
             if app_home_dir.is_dir():
-                print(f"-> Purging isolated home directory: {app_home_dir}")
                 shutil.rmtree(app_home_dir)
+                print(f"-> Isolated home directory purged.")
             else:
-                 print("-> Isolated home directory not found (already removed?)")
+                print(f"-> Isolated home directory not found (already removed?).")
         except Exception as e:
             print(f"Warning: Error purging home directory for {container_name}: {e}")
     else:
-        print(f"-> Keeping isolated home directory (use --purge to remove): {config_utils.get_app_home_dir(container_name, create=False)}")
+        print(f"-> Keeping isolated home directory (use --purge to remove)")
         
     print(f"\n✅ Removal associated with '{container_name}' complete.")

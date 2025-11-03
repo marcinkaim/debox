@@ -10,6 +10,7 @@ from debox.core import config as config_utils
 # Import the command logic we are going to call
 from debox.commands import configure_cmd
 from debox.commands import apply_cmd
+from debox.core.log_utils import log_verbose
 
 def _set_network_permission(container_name: str, allow: bool):
     """
@@ -20,7 +21,10 @@ def _set_network_permission(container_name: str, allow: bool):
         allow: True to allow network, False to deny.
     """
     allow_str = str(allow).lower() # Converts True to 'true', False to 'false'
-    
+    action_str = "Enabling" if allow else "Disabling"
+
+    print(f"--- {action_str} network for {container_name} ---")
+
     # 1. Check if the change is even needed
     try:
         app_config_dir = config_utils.get_app_config_dir(container_name, create=False)
@@ -41,10 +45,10 @@ def _set_network_permission(container_name: str, allow: bool):
         # Continue even if we can't read, 'configure' will find the file
 
     # 2. Call the 'configure' command logic
-    print(f"--- Step 1: Setting 'permissions.network' to '{allow_str}' ---")
+    log_verbose(f"--- Step 1: Setting 'permissions.network' to '{allow_str}' ---")
     try:
         config_string = f"permissions.network:{allow_str}"
-        configure_cmd.configure_app(container_name, [config_string])
+        configure_cmd.configure_app(container_name, [config_string], silent=True)
     except SystemExit as e:
         if e.code != 0: # Check if configure_app exited with an error
             print(f"❌ Error during configuration step. Halting.")
@@ -54,9 +58,10 @@ def _set_network_permission(container_name: str, allow: bool):
         return
 
     # 3. Call the 'apply' command logic
-    print(f"\n--- Step 2: Applying changes to '{container_name}' (this will recreate the container) ---")
+    print("-> Applying changes (recreating container)...")
+    log_verbose(f"\n--- Step 2: Applying changes to '{container_name}' (this will recreate the container) ---")
     try:
-        apply_cmd.apply_changes(container_name)
+        apply_cmd.apply_changes(container_name, silent=True)
     except SystemExit as e:
          if e.code != 0:
             print(f"❌ Error during apply step. Configuration is modified but not applied.")

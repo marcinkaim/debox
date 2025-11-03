@@ -5,8 +5,9 @@ import os
 import subprocess
 import shlex
 import sys
-from debox.core import podman_utils
+from debox.core import podman_utils, state
 from debox.core import config as config_utils
+from debox.core.log_utils import log_verbose
 
 def run_app(container_name: str, app_command_and_args: list[str]):
     """
@@ -15,10 +16,10 @@ def run_app(container_name: str, app_command_and_args: list[str]):
     - If 'app_command_and_args' is empty, 'runtime.default_exec' from config is used.
     It then stops the container on application exit.
     """
-    
+            
     try:
         host_user = getpass.getuser()
-        print(f"-> Running as user: {host_user}")
+        log_verbose(f"-> Running as user: {host_user}")
 
         # --- 1. Load Config ---
         config = {}
@@ -41,12 +42,12 @@ def run_app(container_name: str, app_command_and_args: list[str]):
         if app_command_and_args:
             # Case 1: User provided a command via '--'
             # e.g., debox run debox-libreoffice -- libreoffice --writer
-            print(f"-> Using command provided via CLI: {' '.join(app_command_and_args)}")
+            log_verbose(f"-> Using command provided via CLI: {' '.join(app_command_and_args)}")
             command_to_run_parts = app_command_and_args
         else:
             # Case 2: User did NOT provide a command
             # e.g., debox run debox-vscode
-            print("-> No command provided via CLI, looking for 'runtime.default_exec'...")
+            log_verbose("-> No command provided via CLI, looking for 'runtime.default_exec'...")
             default_exec_string = runtime_cfg.get('default_exec')
             
             if not default_exec_string:
@@ -55,11 +56,11 @@ def run_app(container_name: str, app_command_and_args: list[str]):
                 print(f"   debox run {container_name} -- <command_to_run>")
                 return # Exit gracefully
             
-            print(f"-> Using default command from config: '{default_exec_string}'")
+            log_verbose(f"-> Using default command from config: '{default_exec_string}'")
             command_to_run_parts = shlex.split(default_exec_string)
 
         # --- 3. Start Container ---
-        print(f"-> Starting container '{container_name}' if not running...")
+        log_verbose(f"-> Starting container '{container_name}' if not running...")
         podman_utils.run_command(["podman", "start", container_name])
 
         # --- 4. Assemble and Run Final Command ---
@@ -75,20 +76,20 @@ def run_app(container_name: str, app_command_and_args: list[str]):
         exec_command.extend(prepend_args)     # e.g., ['--ozone-platform=wayland']
         exec_command.extend(executable_args)  # e.g., [] or ['--writer']
         
-        print(f"-> Executing command: {' '.join(exec_command)}") 
+        log_verbose(f"-> Executing command: {' '.join(exec_command)}") 
         
         app_process = subprocess.run(exec_command, check=False) 
-        print(f"-> Application exited with code: {app_process.returncode}")
+        log_verbose(f"-> Application exited with code: {app_process.returncode}")
 
         # --- 5. Stop Container ---
-        print(f"-> Stopping container '{container_name}'...")
+        log_verbose(f"-> Stopping container '{container_name}'...")
         podman_utils.run_command(["podman", "stop", "--time=2", container_name]) 
-        print(f"-> Container '{container_name}' stopped.")
+        log_verbose(f"-> Container '{container_name}' stopped.")
 
     except Exception as e:
         print(f"An error occurred while trying to run the application: {e}")
         try:
-            print(f"-> Attempting to stop container '{container_name}' after error...")
+            log_verbose(f"-> Attempting to stop container '{container_name}' after error...")
             podman_utils.run_command(["podman", "stop", "--ignore", "--time=2", container_name])
         except Exception as stop_e:
             print(f"-> Error stopping container after previous error: {stop_e}")

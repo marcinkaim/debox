@@ -10,6 +10,8 @@ import hashlib
 from pathlib import Path
 from typing import Dict, Any
 
+from debox.core.log_utils import log_verbose
+
 # Define the sections we care about hashing
 SECTIONS_TO_HASH = ['image', 'storage', 'runtime', 'integration', 'permissions']
 STATE_FILE_NAME = ".last_applied_state.json"
@@ -62,7 +64,7 @@ def save_last_applied_hashes(app_config_dir: Path, hashes: Dict[str, str]):
     try:
         with open(state_file, 'w') as f:
             json.dump(hashes, f, indent=2)
-        print(f"-> Saved applied state to {state_file}")
+        log_verbose(f"-> Saved applied state to {state_file}")
     except Exception as e:
         print(f"❌ Error saving applied state to {state_file}: {e}")
 
@@ -83,7 +85,7 @@ def create_needs_apply_flag(app_config_dir: Path):
     """
     try:
         (app_config_dir / FLAG_FILE_NAME).touch()
-        print(f"-> Flagged '{app_config_dir.name}' as needing apply.")
+        log_verbose(f"-> Flagged '{app_config_dir.name}' as needing apply.")
     except Exception as e:
         print(f"Warning: Could not create .needs_apply flag: {e}")
         

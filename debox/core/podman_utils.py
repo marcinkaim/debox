@@ -5,21 +5,41 @@ import json
 from typing import Optional, Dict
 from pathlib import Path
 
-def run_command(command: list[str], input_str: str = None, capture_output: bool = False, check: bool = True):
+from debox.core import state
+
+def run_command(command: list[str], input_str: str = None, capture_output: bool = False, check: bool = True, verbose: bool = None):
     """
     A helper function to run external commands, like podman.
-    Streams output to the console by default.
     """
-    print(f"--> Running command: {' '.join(command)}")
+    # Determine verbosity
+    if verbose is None:
+        is_verbose = state.state.verbose # Use global state
+    else:
+        is_verbose = verbose # Use explicitly passed value
+
+    if is_verbose:
+        print(f"--> Running command: {' '.join(command)}")
+
+    # Determine stdout/stderr handling
+    stdout_pipe = None if is_verbose else subprocess.DEVNULL
+    stderr_pipe = None if is_verbose else subprocess.DEVNULL
+    
+    if capture_output: # capture_output always overrides silencing
+        stdout_pipe = subprocess.PIPE
+        stderr_pipe = subprocess.PIPE
+
     process = subprocess.run(
         command,
         input=input_str,
         text=True,
-        capture_output=capture_output,
-        check=check
+        check=check,
+        stdout=stdout_pipe,
+        stderr=stderr_pipe
     )
+
     if capture_output:
         return process.stdout.strip()
+    
     return None
 
 def build_image(containerfile_content: str, tag: str, context_dir: Path, 
@@ -39,7 +59,18 @@ def build_image(containerfile_content: str, tag: str, context_dir: Path,
             command.extend(["--label", f"{key}={value}"])
 
     command.append(str(context_dir))
-    run_command(command, input_str=containerfile_content)
+
+    if state.state.verbose:
+        print(f"--> Running build command: {' '.join(command)}")
+
+    process = subprocess.run(
+        command,
+        input=containerfile_content,
+        text=True,
+        check=True,
+        stdout=None,
+        stderr=None
+    )
 
 def create_container(name: str, image_tag: str, flags: list[str]):
     """
@@ -51,12 +82,6 @@ def create_container(name: str, image_tag: str, flags: list[str]):
 def get_container_status(container_name: str) -> str:
     """
     Checks the status of a Podman container.
-
-    Args:
-        container_name: The name of the container.
-
-    Returns:
-        The container status ('Running', 'Exited', 'Created', 'Not Found').
     """
     # Use exact name matching (^ and $) and JSON format for reliable parsing
     command = [
@@ -65,26 +90,32 @@ def get_container_status(container_name: str) -> str:
         "--format", "json"
     ]
     try:
-        # Use subprocess directly to capture output easily
-        process = subprocess.run(command, capture_output=True, text=True, check=False)
+        is_verbose = state.state.verbose
+        if is_verbose:
+            print(f"--> Running command: {' '.join(command)}")
+
+        process = subprocess.run(
+            command, 
+            capture_output=True,
+            text=True, 
+            check=False,
+        )
         
         if process.returncode != 0:
-            # Handle podman command errors (rarely happens for 'ps')
-            print(f"Warning: 'podman ps' command failed for {container_name}: {process.stderr}")
+            if is_verbose:
+                print(f"Warning: 'podman ps' command failed: {process.stderr.strip()}")
             return "Error"
             
         output = process.stdout.strip()
-        if not output or output == '[]': # No container found
+        if not output or output == '[]':
             return "Not Found"
             
-        # Parse the JSON output (it's a list, even for one container)
         container_info_list = json.loads(output)
         if not container_info_list:
              return "Not Found"
 
-        # Extract the state from the first (and only) container info dict
         return container_info_list[0].get('State', 'Unknown')
-
+    
     except json.JSONDecodeError:
         print(f"Warning: Could not parse JSON output from podman ps for {container_name}")
         return "Error (JSON)"

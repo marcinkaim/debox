@@ -13,6 +13,8 @@ import subprocess
 import time
 import shlex
 
+from debox.core.log_utils import log_verbose
+
 # Import necessary functions/constants from other core modules
 from . import podman_utils
 from . import config as config_utils # Use 'as' to avoid naming conflict
@@ -34,30 +36,30 @@ def add_desktop_integration(config: dict):
     icons_were_copied = False
     commands_to_alias = {}
 
-    print("--- Starting Desktop Integration ---")
+    log_verbose("--- Starting Desktop Integration ---")
 
     # --- Get skip_categories from config ---
     # Read the list from the YAML, default to an empty list if not specified
     if skip_categories_set:
-        print(f"-> Will skip exporting .desktop files with categories: {list(skip_categories_set)}")
+        log_verbose(f"-> Will skip exporting .desktop files with categories: {list(skip_categories_set)}")
     else:
-        print("-> No categories specified to skip. Will export all valid apps.")
+        log_verbose("-> No categories specified to skip. Will export all valid apps.")
         
     try:
         if not desktop_integration_enabled:
-            print("-> Desktop integration explicitly disabled in config. Skipping.")
+            log_verbose("-> Desktop integration explicitly disabled in config. Skipping.")
         else:
-            print("-> Temporarily starting container for integration...")
+            log_verbose("-> Temporarily starting container for integration...")
             podman_utils.run_command(["podman", "start", container_name])
-            print("-> Waiting for container to initialize...")
+            log_verbose("-> Waiting for container to initialize...")
             time.sleep(2) 
             status = podman_utils.get_container_status(container_name)
-            print(f"-> Container status: {status}")
+            log_verbose(f"-> Container status: {status}")
             if "run" not in status.lower():
                 raise RuntimeError(f"Container {container_name} failed to start properly.")
 
             # --- 1. Find ALL .desktop files in the container ---
-            print("-> Searching for .desktop files in container...")
+            log_verbose("-> Searching for .desktop files in container...")
             find_cmd = [
                 "podman", "exec", container_name, 
                 "find", "/usr/share/applications/", "/usr/local/share/applications/", 
@@ -73,16 +75,16 @@ def add_desktop_integration(config: dict):
                 print("Warning: No .desktop files found in the container.")
                 return
 
-            print(f"-> Found {len(found_desktop_paths)} potential .desktop file(s). Processing...")
+            log_verbose(f"-> Found {len(found_desktop_paths)} potential .desktop file(s). Processing...")
 
             all_icon_names_to_export = set()
             parsed_data = [] # Stores tuples: (original_path, parser_obj)
 
             # --- 2. Loop 1: Parse files, gather icons & base commands ---
-            print("-> Processing .desktop files...")
+            log_verbose("-> Processing .desktop files...")
             for desktop_path_in_container in found_desktop_paths:
                 try:
-                    print(f"--> Processing: {desktop_path_in_container}")
+                    log_verbose(f"--> Processing: {desktop_path_in_container}")
                     cat_cmd = ["podman", "exec", container_name, "cat", desktop_path_in_container]
                     original_content = podman_utils.run_command(cat_cmd, capture_output=True)
                     
@@ -92,9 +94,9 @@ def add_desktop_integration(config: dict):
 
                     if 'Desktop Entry' not in parser or not parser.getboolean('Desktop Entry', 'NoDisplay', fallback=False) is False:
                         if 'Desktop Entry' in parser and parser.getboolean('Desktop Entry', 'NoDisplay', fallback=False):
-                            print(f"--> Skipping hidden file (NoDisplay=true): {desktop_path_in_container}")
+                            log_verbose(f"--> Skipping hidden file (NoDisplay=true): {desktop_path_in_container}")
                         else:
-                            print(f"--> Skipping invalid file (no [Desktop Entry]): {desktop_path_in_container}")
+                            log_verbose(f"--> Skipping invalid file (no [Desktop Entry]): {desktop_path_in_container}")
                         continue
 
                     # --- Check Categories using config ---
@@ -104,7 +106,7 @@ def add_desktop_integration(config: dict):
                     
                     # Check if any category is in the skip list from the config
                     if skip_categories_set.intersection(categories): # Use the set from config
-                        print(f"--> Skipping file due to category: {desktop_path_in_container} (Categories: {categories_str})")
+                        log_verbose(f"--> Skipping file due to category: {desktop_path_in_container} (Categories: {categories_str})")
                         continue
                     
                     # Collect icons and find base commands from all sections
@@ -131,7 +133,7 @@ def add_desktop_integration(config: dict):
                         parsed_data.append((desktop_path_in_container, parser))
                         desktop_files_processed += 1
                     else:
-                        print(f"--> Skipping file with no Exec command: {desktop_path_in_container}")
+                        log_verbose(f"--> Skipping file with no Exec command: {desktop_path_in_container}")
 
                 except Exception as parse_e:
                     print(f"--> Warning: Failed to parse or process {desktop_path_in_container}: {parse_e}")
@@ -145,13 +147,13 @@ def add_desktop_integration(config: dict):
                 all_icon_names_to_export.add("application-default-icon")
             
             final_icon_list = list(all_icon_names_to_export)
-            print(f"-> Identified {len(final_icon_list)} unique icon name(s) to export: {final_icon_list}")
+            log_verbose(f"-> Identified {len(final_icon_list)} unique icon name(s) to export: {final_icon_list}")
 
             # --- 3. Call icon export function with the full list ---
             icons_were_copied = _export_icons(container_name, final_icon_list)
 
             # --- 4. Loop 2: Modify Exec/Icon entries and save .desktop files ---
-            print("-> Saving integrated .desktop files...")
+            log_verbose("-> Saving integrated .desktop files...")
             for original_path, parser in parsed_data: # Removed original_exec_map from tuple
                 original_filename = Path(original_path).name
                 
@@ -202,36 +204,36 @@ def add_desktop_integration(config: dict):
                 try:
                     with open(final_desktop_path, 'w') as f:
                         parser.write(f, space_around_delimiters=False)
-                    print(f"--> Saved: {final_desktop_path}")
+                    log_verbose(f"--> Saved: {final_desktop_path}")
                 except Exception as write_e:
-                    print(f"--> Error writing {final_desktop_path}: {write_e}")
+                    log_verbose(f"--> Error writing {final_desktop_path}: {write_e}")
 
             # --- 5. Update caches ---
             if icons_were_copied:
-                print("-> Updating host icon cache...")
+                log_verbose("-> Updating host icon cache...")
                 try: # Add try-except for robustness
                     podman_utils.run_command(["gtk-update-icon-cache", "-f", "-t", str(Path(os.path.expanduser("~/.local/share/icons")))])
                 except Exception as cache_e:
                     print(f"Warning: Failed to update icon cache: {cache_e}")
                 
-            print("-> Updating host desktop application database...")
+            log_verbose("-> Updating host desktop application database...")
             podman_utils.run_command(["update-desktop-database", str(config_utils.DESKTOP_FILES_DIR)])
 
-            print(f"-> Successfully integrated {desktop_files_processed} application(s).")
-            print("--- Desktop Integration Complete ---")
+            log_verbose(f"-> Successfully integrated {desktop_files_processed} application(s).")
+            log_verbose("--- Desktop Integration Complete ---")
 
         # --- 6. Create Aliases ---
-        print("-> Processing command alias scripts...")
+        log_verbose("-> Processing command alias scripts...")
 
         # Add commands from the alias_map that were NOT found in .desktop files
         for original_command, alias_name in alias_map.items():
                 if original_command not in commands_to_alias:
-                    print(f"-> Adding alias from config: '{original_command}' -> '{alias_name}'")
+                    log_verbose(f"-> Adding alias from config: '{original_command}' -> '{alias_name}'")
                     commands_to_alias[original_command] = alias_name # Add it to the map
         
         aliases_created_count = 0
         if not commands_to_alias:
-                print("--> No commands found to create aliases for.")
+                log_verbose("--> No commands found to create aliases for.")
         else:
             # Check PATH once before creating aliases
             local_bin_path = str(Path(os.path.expanduser("~/.local/bin")))
@@ -245,13 +247,13 @@ def add_desktop_integration(config: dict):
                     # We use the original command name as the base command
                     _create_alias_script(alias_name, container_name, original_command)
                     aliases_created_count += 1
-            print(f"-> Created/Updated {aliases_created_count} alias script(s).")
+            log_verbose(f"-> Created/Updated {aliases_created_count} alias script(s).")
 
     except Exception as e:
          print(f"Error during desktop file export process: {e}")
     finally:
         # Stop the temporary container
-        print("-> Stopping temporary container used for integration...")
+        log_verbose("-> Stopping temporary container used for integration...")
         podman_utils.run_command(["podman", "stop", "--time=2", container_name])
 
 def _create_alias_script(alias_name: str, container_name: str, base_command: str):
@@ -301,12 +303,12 @@ def _export_icons(container_name: str, icon_names: list[str]) -> bool:
         True if at least one icon was successfully copied, False otherwise.
     """
     icons_copied_count = 0
-    print(f"-> Starting icon export for names: {icon_names}")
+    log_verbose(f"-> Starting icon export for names: {icon_names}")
 
     for icon_name in icon_names:
         if not icon_name: # Skip empty names
             continue
-        print(f"--> Searching for icons matching '{icon_name}.*'...")
+        log_verbose(f"--> Searching for icons matching '{icon_name}.*'...")
         try:
             # Search only in standard icon directories
             find_icon_cmd = ["podman", "exec", container_name, "find", "/usr/share/icons/", "/usr/share/pixmaps/", "-name", f"{icon_name}.*"]
@@ -314,13 +316,13 @@ def _export_icons(container_name: str, icon_names: list[str]) -> bool:
             found_icons = process_icons.stdout.strip().splitlines()
 
             if process_icons.returncode != 0 and not found_icons:
-                print(f"--> Warning: 'find' command failed for icons named '{icon_name}': {process_icons.stderr}")
+                log_verbose(f"--> Warning: 'find' command failed for icons named '{icon_name}': {process_icons.stderr}")
                 continue # Try next icon name
             if not found_icons:
-                 print(f"--> No icon files found for '{icon_name}'.")
+                 log_verbose(f"--> No icon files found for '{icon_name}'.")
                  continue # Try next icon name
 
-            print(f"--> Found {len(found_icons)} icon file(s) for '{icon_name}'. Copying with prefix...")
+            log_verbose(f"--> Found {len(found_icons)} icon file(s) for '{icon_name}'. Copying with prefix...")
             
             for icon_path_in_container in found_icons:
                 try:
@@ -348,7 +350,7 @@ def _export_icons(container_name: str, icon_names: list[str]) -> bool:
                     # --- Copy the icon ---
                     cp_cmd = ["podman", "cp", f"{container_name}:{icon_path_in_container}", str(icon_path_on_host)]
                     podman_utils.run_command(cp_cmd)
-                    print(f"    Copied: {icon_path_in_container} -> {icon_path_on_host}")
+                    log_verbose(f"    Copied: {icon_path_in_container} -> {icon_path_on_host}")
                     icons_copied_count += 1
                 except Exception as copy_e:
                      print(f"--> Error copying icon {icon_path_in_container}: {copy_e}")
@@ -357,10 +359,10 @@ def _export_icons(container_name: str, icon_names: list[str]) -> bool:
             print(f"--> Error finding icons for '{icon_name}': {find_e}")
 
     if icons_copied_count > 0:
-         print(f"-> Successfully copied {icons_copied_count} total icon file(s).")
+         log_verbose(f"-> Successfully copied {icons_copied_count} total icon file(s).")
          return True
     else:
-         print("-> Warning: No icons were successfully copied.")
+         log_verbose("-> Warning: No icons were successfully copied.")
          return False
     
 # --- Main Public Function for Removal ---
@@ -369,7 +371,7 @@ def remove_desktop_integration(container_name: str, config: dict):
     Public function to handle the removal of all desktop integration components:
     .desktop files, icons, and alias scripts. Updates host caches afterwards.
     """
-    print(f"--- Removing Desktop Integration for {container_name} ---")
+    log_verbose(f"--- Removing Desktop Integration for {container_name} ---")
     desktop_files_removed_count = 0
     icon_removed_count = 0
     aliases_removed_count = 0
@@ -383,13 +385,13 @@ def remove_desktop_integration(container_name: str, config: dict):
         # --- Remove .desktop files by prefix AND collect commands ---
         desktop_prefix = f"{container_name}_*.desktop"
         desktop_pattern = str(config_utils.DESKTOP_FILES_DIR / desktop_prefix)
-        print(f"-> Searching for desktop files matching: {desktop_pattern}")
+        log_verbose(f"-> Searching for desktop files matching: {desktop_pattern}")
         
         found_desktop_files = glob.glob(desktop_pattern)
         for desktop_path_str in found_desktop_files:
             desktop_path = Path(desktop_path_str)
             if desktop_path.is_file():
-                print(f"-> Processing for alias extraction: {desktop_path}")
+                log_verbose(f"-> Processing for alias extraction: {desktop_path}")
                 try:
                     # Parse desktop file BEFORE removing to find Exec command
                     temp_parser = configparser.ConfigParser(interpolation=None)
@@ -410,7 +412,7 @@ def remove_desktop_integration(container_name: str, config: dict):
                                 print(f"    Warning: Could not parse Exec line: {exec_line}")
                     
                     # Remove the .desktop file
-                    print(f"-> Removing desktop file: {desktop_path}")
+                    log_verbose(f"-> Removing desktop file: {desktop_path}")
                     desktop_path.unlink()
                     desktop_files_removed_count += 1
                     
@@ -419,7 +421,7 @@ def remove_desktop_integration(container_name: str, config: dict):
 
         # --- Remove icon files by prefix ---
         icon_prefix_pattern = f"{container_name}_*.*" 
-        print(f"-> Searching for icon files starting with '{container_name}_'...")
+        log_verbose(f"-> Searching for icon files starting with '{container_name}_'...")
         user_icon_dir = Path(os.path.expanduser("~/.local/share/icons"))
         user_pixmap_dir = Path(os.path.expanduser("~/.local/share/pixmaps"))
 
@@ -427,7 +429,7 @@ def remove_desktop_integration(container_name: str, config: dict):
         if user_icon_dir.is_dir():
             for icon_path in user_icon_dir.rglob(icon_prefix_pattern): 
                 if icon_path.is_file():
-                    # print(f"--> Found and removing icon: {icon_path}") # Optional: less verbose
+                    log_verbose(f"--> Found and removing icon: {icon_path}")
                     try:
                         icon_path.unlink()
                         icon_removed_count += 1
@@ -438,7 +440,7 @@ def remove_desktop_integration(container_name: str, config: dict):
         if user_pixmap_dir.is_dir():
              for icon_path in user_pixmap_dir.glob(icon_prefix_pattern): 
                  if icon_path.is_file():
-                     # print(f"--> Found and removing icon: {icon_path}") # Optional: less verbose
+                     log_verbose(f"--> Found and removing icon: {icon_path}")
                      try:
                          icon_path.unlink()
                          icon_removed_count += 1
@@ -447,50 +449,50 @@ def remove_desktop_integration(container_name: str, config: dict):
 
         # --- Remove Alias Scripts ---
         # Note: Logic simplifies - we remove aliases found in Exec lines directly
-        print("-> Removing associated alias scripts...")
+        log_verbose("-> Removing associated alias scripts...")
         local_bin_dir = Path(os.path.expanduser("~/.local/bin"))
         
         if not commands_found_in_desktop:
-             print("--> No potential aliases identified from removed .desktop files.")
+            log_verbose("--> No potential aliases identified from removed .desktop files.")
         elif not local_bin_dir.is_dir():
-             print(f"--> Warning: Local bin directory not found: {local_bin_dir}.")
+            print(f"--> Warning: Local bin directory not found: {local_bin_dir}.")
         else:
-            print(f"--> Aliases identified for potential removal: {list(commands_found_in_desktop)}")
+            log_verbose(f"--> Aliases identified for potential removal: {list(commands_found_in_desktop)}")
             for alias_name in commands_found_in_desktop: # Now contains actual alias names
                 alias_path = local_bin_dir / alias_name
                 if alias_path.is_file():
                     # Optional safety check: verify script content
-                    print(f"--> Found and removing alias script: {alias_path}")
+                    log_verbose(f"--> Found and removing alias script: {alias_path}")
                     try:
                         alias_path.unlink()
                         aliases_removed_count += 1
                     except OSError as e:
                         print(f"--> Warning: Could not remove alias script {alias_path}: {e}")
-                #else:
-                #    print(f"---> Alias script not found: {alias_path}")
+                else:
+                    print(f"---> Warning: Alias script not found: {alias_path}")
 
 
         # --- Update Caches ---
         if desktop_files_removed_count > 0:
-            print("-> Updating desktop application database...")
+            log_verbose("-> Updating desktop application database...")
             try: 
                 podman_utils.run_command(["update-desktop-database", str(config_utils.DESKTOP_FILES_DIR)])
             except Exception as db_e:
                  print(f"Warning: Failed to update desktop database: {db_e}")
 
         if icon_removed_count > 0:
-            print(f"-> Removed {icon_removed_count} icon file(s).")
-            print("-> Updating icon cache...")
+            log_verbose(f"-> Removed {icon_removed_count} icon file(s).")
+            log_verbose("-> Updating icon cache...")
             try:
                 podman_utils.run_command(["gtk-update-icon-cache", "-f", "-t", str(user_icon_dir)])
             except Exception as cache_e:
                  print(f"Warning: Failed to update icon cache: {cache_e}")
         else:
-            print("-> No icon files found or removed.")
+            log_verbose("-> No icon files found or removed.")
             
         if aliases_removed_count > 0:
-             print(f"-> Removed {aliases_removed_count} alias script(s).")
+             log_verbose(f"-> Removed {aliases_removed_count} alias script(s).")
 
-        print("--- Desktop Integration Removal Complete ---")
+        log_verbose("--- Desktop Integration Removal Complete ---")
     except Exception as e:
         print(f"Warning: Error during desktop integration cleanup for {container_name}: {e}")
