@@ -10,7 +10,7 @@ import hashlib
 from pathlib import Path
 from typing import Dict, Any
 
-from debox.core.log_utils import log_verbose
+from debox.core.log_utils import log_debug, log_error, log_warning
 
 # Define the sections we care about hashing
 SECTIONS_TO_HASH = ['image', 'storage', 'runtime', 'integration', 'permissions']
@@ -53,7 +53,7 @@ def get_last_applied_hashes(app_config_dir: Path) -> Dict[str, str]:
         with open(state_file, 'r') as f:
             return json.load(f)
     except Exception as e:
-        print(f"Warning: Could not read state file {state_file}: {e}")
+        log_warning(f"Could not read state file {state_file}: {e}")
         return {} # Treat unreadable state as needing update
 
 def save_last_applied_hashes(app_config_dir: Path, hashes: Dict[str, str]):
@@ -64,9 +64,9 @@ def save_last_applied_hashes(app_config_dir: Path, hashes: Dict[str, str]):
     try:
         with open(state_file, 'w') as f:
             json.dump(hashes, f, indent=2)
-        log_verbose(f"-> Saved applied state to {state_file}")
+        log_debug(f"-> Saved applied state to {state_file}")
     except Exception as e:
-        print(f"❌ Error saving applied state to {state_file}: {e}")
+        log_error(f"Saving applied state to {state_file} failed: {e}")
 
 def remove_last_applied_hashes(app_config_dir: Path):
     """
@@ -77,7 +77,7 @@ def remove_last_applied_hashes(app_config_dir: Path):
         try:
             state_file.unlink()
         except Exception as e:
-            print(f"Warning: Could not remove state file {state_file}: {e}")
+            log_warning(f"Could not remove state file {state_file}: {e}")
 
 def create_needs_apply_flag(app_config_dir: Path):
     """
@@ -85,9 +85,9 @@ def create_needs_apply_flag(app_config_dir: Path):
     """
     try:
         (app_config_dir / FLAG_FILE_NAME).touch()
-        log_verbose(f"-> Flagged '{app_config_dir.name}' as needing apply.")
+        log_debug(f"-> Flagged '{app_config_dir.name}' as needing apply.")
     except Exception as e:
-        print(f"Warning: Could not create .needs_apply flag: {e}")
+        log_warning(f"Could not create .needs_apply flag: {e}")
         
 def remove_needs_apply_flag(app_config_dir: Path):
     """
@@ -98,4 +98,4 @@ def remove_needs_apply_flag(app_config_dir: Path):
         try:
             flag_file.unlink()
         except Exception as e:
-            print(f"Warning: Could not remove .needs_apply flag: {e}")
+            log_warning(f"Could not remove .needs_apply flag: {e}")

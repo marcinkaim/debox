@@ -4,14 +4,14 @@ import shutil
 
 from debox.core import config as config_utils, container_ops
 from debox.core import desktop_integration
-from debox.core.log_utils import log_verbose, run_step, console
+from debox.core.log_utils import log_debug, log_info, log_warning, run_step
 
 def remove_app(container_name: str, purge_home: bool):
     """
     Finds and removes all components of a debox application,
     identified by its unique container name.
     """
-    console.print(f"--- Removing application associated with container: {container_name} ---")
+    log_info(f"--- Removing application associated with container: {container_name} ---")
 
     # Load config (needed for desktop integration cleanup)
     config = {} 
@@ -20,11 +20,11 @@ def remove_app(container_name: str, purge_home: bool):
         config_path = app_config_dir / "config.yml"
         if config_path.is_file():
             config = config_utils.load_config(config_path)
-            log_verbose(f"-> Found configuration for '{container_name}' at {config_path}")
+            log_debug(f"-> Found configuration for '{container_name}' at {config_path}")
         else:
-            console.print(f"Warning: Configuration file not found. Cleanup may be partial.")
+            log_warning(f"Configuration file not found. Cleanup may be partial.")
     except Exception as e:
-        console.print(f"Warning: Could not load configuration file. Cleanup may be partial. Error: {e}")
+        log_warning(f"Could not load configuration file. Cleanup may be partial. Error: {e}")
 
     # --- 1. Remove Desktop Integration ---
     with run_step(
@@ -59,7 +59,7 @@ def remove_app(container_name: str, purge_home: bool):
         if app_config_dir.is_dir():
             shutil.rmtree(app_config_dir)
         else:
-            log_verbose(f"-> Config directory not found, skipping: {app_config_dir}")
+            log_debug(f"-> Config directory not found, skipping: {app_config_dir}")
         
     # --- Optionally Remove Isolated Home ---
     if purge_home:
@@ -72,8 +72,8 @@ def remove_app(container_name: str, purge_home: bool):
             if app_home_dir.is_dir():
                 shutil.rmtree(app_home_dir)
             else:
-                log_verbose(f"-> Isolated home directory not found, skipping: {app_home_dir}")
+                log_debug(f"-> Isolated home directory not found, skipping: {app_home_dir}")
     else:
-        console.print("-> Isolated home directory kept (use --purge to remove).")
+        log_info("-> Isolated home directory kept (use --purge to remove).")
         
-    print(f"\n✅ Removal associated with '{container_name}' complete.")
+    log_info(f"\n✅ Removal associated with '{container_name}' complete.")

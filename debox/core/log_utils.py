@@ -1,46 +1,90 @@
 # debox/core/log_utils.py
 """
 Central logging utility for debox.
-Reads the global state to determine verbosity.
+Provides logging functions (debug, info, warning, error)
+and a context manager for steps (run_step).
+Log level is managed globally.
 """
 
 import contextlib
 import sys
+import subprocess
 from rich.console import Console
-from debox.core import state
 
 console = Console(highlight=False)
 
-def log_verbose(message: str):
+class LogLevels:
+    """Defines available log levels."""
+    DEBUG = 10
+    INFO = 20
+    WARNING = 30
+    ERROR = 40
+
+CURRENT_LOG_LEVEL = LogLevels.INFO
+
+def set_log_level(level: int):
+    """Sets the global log level for the application."""
+    global CURRENT_LOG_LEVEL
+    CURRENT_LOG_LEVEL = level
+
+@contextlib.contextmanager
+def temp_log_level(level: int):
     """
-    Prints a message to the console only if
-    the global verbose flag (state.state.verbose) is set to True.
+    Context manager to temporarily set the log level.
+    Used by meta-commands like 'network'.
     """
-    if state.state.verbose:
+    global CURRENT_LOG_LEVEL
+    original_level = CURRENT_LOG_LEVEL
+    try:
+        set_log_level(level)
+        yield
+    finally:
+        set_log_level(original_level)
+
+def log_debug(message: str):
+    """Logs a verbose message (only visible with --verbose)."""
+    if CURRENT_LOG_LEVEL <= LogLevels.DEBUG:
+        console.print(f"{message}", style="dim")
+
+def log_info(message: str):
+    """Logs a standard informational message."""
+    if CURRENT_LOG_LEVEL <= LogLevels.INFO:
         console.print(message)
 
+def log_warning(message: str):
+    """Logs a warning message."""
+    if CURRENT_LOG_LEVEL <= LogLevels.WARNING:
+        console.print(f"⚠️ Warning: {message}", style="yellow")
+
+def log_error(message: str, exit_program: bool = False):
+    """Logs an error message and optionally exits."""
+    if CURRENT_LOG_LEVEL <= LogLevels.ERROR:
+        console.print(f"❌ Error: {message}", style="bold red")
+    if exit_program:
+        sys.exit(1)
+
+# --- 5. Zaktualizowany 'run_step' ---
 @contextlib.contextmanager
 def run_step(spinner_message: str, success_message: str, error_message: str):
     """
-    A context manager that wraps a long-running code block.
-    
-    - In silent mode: Shows a spinner.
-    - In verbose mode: Shows nothing (logs are printed by the code block).
-    - On success: Prints the success_message.
-    - On failure: Prints the error_message, formatted, and exits.
+    Context manager for long-running steps.
+    - Shows spinner if log level is INFO.
+    - Is silent if log level is DEBUG (verbose) or WARNING/ERROR.
+    - Prints success/error.
     """
     try:
-        if state.state.verbose:
-            yield None
-        else:
-            with console.status(spinner_message) as status:
+        if CURRENT_LOG_LEVEL == LogLevels.INFO:
+            with console.status(f"[bold green]{spinner_message}") as status:
                 yield status
+        else:
+            log_debug(f"Starting step: {spinner_message}")
+            yield None
         
-        if success_message:
-            console.print(success_message)
+        log_info(success_message)
     
     except SystemExit as e:
         raise e
+    except subprocess.CalledProcessError as e:
+        log_error(f"{error_message}.", exit_program=True)
     except Exception as e:
-        console.print(f"❌ {error_message}", style="bold red") 
-        sys.exit(1)
+        log_error(f"{error_message}: {e}", exit_program=True)

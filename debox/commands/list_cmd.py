@@ -6,7 +6,7 @@ from debox.core import config as config_utils
 from debox.core import podman_utils
 # --- ADD import for the hash_utils module ---
 from debox.core import hash_utils
-from debox.core.log_utils import log_verbose, run_step, console
+from debox.core.log_utils import log_debug, log_error, log_info, log_warning, run_step, console
 
 def list_installed_apps():
     """
@@ -25,10 +25,10 @@ def list_installed_apps():
 
     # Check if the main apps directory exists
     if not config_utils.DEBOX_APPS_DIR.is_dir():
-        console.print(f"No debox applications installed yet (directory not found: {config_utils.DEBOX_APPS_DIR})")
+        log_info(f"No debox applications installed yet (directory not found: {config_utils.DEBOX_APPS_DIR})")
         return
 
-    log_verbose("-> Pre-scanning for valid application configs...")
+    log_debug("-> Pre-scanning for valid application configs...")
     app_dirs_list = []
     try:
         app_dirs_list = [
@@ -36,13 +36,12 @@ def list_installed_apps():
             if app_dir.is_dir() and (app_dir / "config.yml").is_file()
         ]
         total_apps = len(app_dirs_list)
-        log_verbose(f"-> Found {total_apps} application(s).")
+        log_debug(f"-> Found {total_apps} application(s).")
     except Exception as e:
-        console.print(f"❌ Error scanning config directory: {e}", style="bold red")
-        return
+        log_error(f"Scanning config directory {e} failed", exit_program=True)
 
     if total_apps == 0:
-        console.print("No debox applications installed yet.")
+        log_info("No debox applications installed yet.")
         return
     
     with run_step(
@@ -89,7 +88,7 @@ def list_installed_apps():
                 )
             except Exception as e:
                 # Handle cases where config file might be invalid
-                console.print(f"Warning: Failed to load config {app_dir.name}: {e}", style="yellow")
+                log_warning(f"Failed to load config {app_dir.name}: {e}", style="yellow")
                 table.add_row(
                     f"Error loading {app_dir.name}",
                     app_dir.name,
@@ -101,7 +100,7 @@ def list_installed_apps():
                 )
             
             percent_complete = int(((i + 1) / total_apps) * 100)
-            if status: # status będzie None w trybie verbose
+            if status:
                 status.update(f"[bold green]Loading application status... {percent_complete}%")
 
         # Print the final table

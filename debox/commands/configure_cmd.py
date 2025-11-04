@@ -1,33 +1,29 @@
 # debox/commands/configure_cmd.py
 
-import sys
-from pathlib import Path
 from debox.core import config as config_utils, hash_utils
-from debox.core.log_utils import log_verbose, console
+from debox.core.log_utils import log_debug, log_error, log_info
 
-def configure_app(container_name: str, updates: list[str], silent: bool = False):
+def configure_app(container_name: str, updates: list[str]):
     """
     Loads, modifies, and saves an application's configuration file
     and sets the .needs_apply flag.
     """
-    log_verbose(f"--- Configuring application: {container_name} ---")
+    log_debug(f"--- Configuring application: {container_name} ---")
     
     try:
         # 1. Find and load the config
         app_config_dir = config_utils.get_app_config_dir(container_name, create=False)
         if not app_config_dir.is_dir():
-            console.print(f"❌ Error: Configuration directory for '{container_name}' not found.", style="bold red")
-            sys.exit(1)
+            log_error(f"Configuration directory for '{container_name}' not found.", exit_program=True)
             
         config_path = app_config_dir / "config.yml"
         if not config_path.is_file():
-            console.print(f"❌ Error: config.yml not found for '{container_name}'.", style="bold red")
-            sys.exit(1)
+            log_error(f"config.yml not found for '{container_name}'.", exit_program=True)
             
         config = config_utils.load_config(config_path)
 
         # 2. Loop through and apply updates in memory
-        log_verbose("-> Applying requested changes:")
+        log_debug("-> Applying requested changes:")
         modified = False
         for update_str in updates:
             try:
@@ -54,9 +50,7 @@ def configure_app(container_name: str, updates: list[str], silent: bool = False)
                 config_utils.update_config_value(config, path_str, action, value_str)
                 modified = True
             except (KeyError, TypeError, ValueError) as e:
-                console.print(f"-> ❌ Error applying update '{update_str}': {e}", style="bold red")
-                console.print("-> Halting configuration. No changes will be saved.")
-                sys.exit(1)
+                log_error(f"-> Applying update '{update_str}' failed: {e}", exit_program=True)
 
         # 3. Save the modified config file
         if modified:
@@ -65,13 +59,10 @@ def configure_app(container_name: str, updates: list[str], silent: bool = False)
             # 4. Create the .needs_apply "dirty" flag
             hash_utils.create_needs_apply_flag(app_config_dir)
 
-            if not silent:
-                console.print(f"\n✅ Successfully modified configuration for '{container_name}'.")
-                console.print(f"   Run 'debox apply {container_name}' to apply changes.")
+            log_info(f"\n✅ Successfully modified configuration for '{container_name}'.")
+            log_info(f"   Run 'debox apply {container_name}' to apply changes.")
         else:
-            if not silent:
-                console.print("-> No updates specified or no changes made.")
+            log_info("-> No updates specified or no changes made.")
 
     except Exception as e:
-        console.print(f"❌ An unexpected error occurred: {e}", style="bold red")
-        sys.exit(1)
+        log_error(f"Configuring application {container_name} failed: {e}", exit_program=True)

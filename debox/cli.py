@@ -4,7 +4,7 @@ import typer
 from typing_extensions import Annotated
 from pathlib import Path
 
-from debox.core import state
+from debox.core.log_utils import LogLevels, set_log_level
 
 # Import the modules that will contain the logic for each command.
 # We will create these files in the next steps.
@@ -19,22 +19,26 @@ from .commands import (
     network_cmd
 )
 
-# --- Create a callback function for the main 'app' ---
 def main_callback(
     verbose: Annotated[bool, typer.Option(
         "--verbose", "-v", 
-        help="Show detailed technical log messages."
+        help="Show detailed technical (DEBUG) log messages."
+    )] = False,
+    quiet: Annotated[bool, typer.Option(
+        "--quiet", "-q",
+        help="Show only WARNING and ERROR messages."
     )] = False
 ):
     """
-    Main callback function, executed before any command.
-    Used to set global flags like verbosity.
+    Main callback to set global flags like log level.
     """
     if verbose:
-        state.state.verbose = True
+        set_log_level(LogLevels.DEBUG)
+    elif quiet:
+        set_log_level(LogLevels.WARNING)
+    else:
+        set_log_level(LogLevels.INFO)
 
-# Create the main Typer application object.
-# This object will manage all our commands.
 app = typer.Typer(
     help="A container manager for desktop applications on Debian, powered by Podman.",
     callback=main_callback

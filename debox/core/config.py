@@ -4,7 +4,7 @@ from pathlib import Path
 import yaml
 import os
 
-from debox.core.log_utils import log_verbose
+from debox.core.log_utils import log_debug, log_error
 
 # Define constants for configuration directories.
 # Using os.path.expanduser('~') makes it work for any user.
@@ -25,7 +25,7 @@ def load_config(config_path: Path) -> dict:
     Raises:
         ValueError: If the file is invalid or missing required keys.
     """
-    log_verbose(f"-> Loading configuration from {config_path}...")
+    log_debug(f"-> Loading configuration from {config_path}...")
     if not config_path.is_file():
         raise ValueError(f"Configuration file not found: {config_path}")
 
@@ -38,7 +38,7 @@ def load_config(config_path: Path) -> dict:
         if key not in config:
             raise ValueError(f"Missing required key in config file: '{key}'")
     
-    log_verbose("-> Configuration loaded and validated successfully.")
+    log_debug("-> Configuration loaded and validated successfully.")
     return config
 
 def get_app_config_dir(container_name: str, create: bool = True) -> Path:
@@ -68,9 +68,9 @@ def save_config(config: dict, config_path: Path):
     try:
         with open(config_path, 'w') as f:
             yaml.dump(config, f, sort_keys=False, default_flow_style=False)
-        log_verbose(f"-> Configuration saved to {config_path}")
+        log_debug(f"-> Configuration saved to {config_path}")
     except Exception as e:
-        print(f"❌ Error saving configuration to {config_path}: {e}")
+        log_error(f"Saving configuration to {config_path} failed: {e}")
         raise
 
 def _convert_type(value_str: str):
@@ -118,7 +118,7 @@ def update_config_value(config: dict, path_str: str, action: str, value_str: str
         # Simple value replacement, creates key if not exists
         typed_value = _convert_type(value_str)
         parent[final_key] = typed_value
-        log_verbose(f"  - Set: {path_str} = {typed_value}")
+        log_debug(f"  - Set: {path_str} = {typed_value}")
     
     elif action == 'add':
         # Add to a list, creates list if not exists
@@ -126,7 +126,7 @@ def update_config_value(config: dict, path_str: str, action: str, value_str: str
         if isinstance(target_list, list):
             typed_value = _convert_type(value_str)
             target_list.append(typed_value)
-            log_verbose(f"  - Added: {value_str} to {path_str}")
+            log_debug(f"  - Added: {value_str} to {path_str}")
         else:
             raise TypeError(f"Cannot 'add' to non-list key: {path_str}")
             
@@ -144,7 +144,7 @@ def update_config_value(config: dict, path_str: str, action: str, value_str: str
                     target_list.remove(value_str) # Fallback to raw string
                 except ValueError:
                      raise ValueError(f"Value '{value_str}' not found in list {path_str}")
-            log_verbose(f"  - Removed: {value_str} from {path_str}")
+            log_debug(f"  - Removed: {value_str} from {path_str}")
         else:
             raise TypeError(f"Cannot 'remove' from non-list key: {path_str}")
             
@@ -158,7 +158,7 @@ def update_config_value(config: dict, path_str: str, action: str, value_str: str
         except ValueError:
             raise ValueError("Invalid map format. Expected 'key=value'.")
         target_map[k.strip()] = v.strip() # Store value as string
-        log_verbose(f"  - Set Map: {path_str}.{k.strip()} = {v.strip()}")
+        log_debug(f"  - Set Map: {path_str}.{k.strip()} = {v.strip()}")
             
     elif action == 'unset_map':
         # Remove a key from an *existing* dictionary
@@ -168,7 +168,7 @@ def update_config_value(config: dict, path_str: str, action: str, value_str: str
          if isinstance(target_map, dict):
             try:
                 del target_map[value_str]
-                log_verbose(f"  - Unset Map: Removed key {value_str} from {path_str}")
+                log_debug(f"  - Unset Map: Removed key {value_str} from {path_str}")
             except KeyError:
                 raise KeyError(f"Key '{value_str}' not found in map {path_str}")
          else:

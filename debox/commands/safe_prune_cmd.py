@@ -2,8 +2,7 @@
 
 import subprocess
 import typer # For confirmation prompt
-from debox.core import podman_utils
-from debox.core.log_utils import log_verbose, console
+from debox.core.log_utils import log_debug, log_error, log_info
 
 # The label used to identify debox-managed resources
 DEBOX_LABEL_FILTER = "label!=debox.managed=true"
@@ -13,12 +12,12 @@ def prune_resources(force: bool):
     Executes 'podman system prune', filtering out debox resources.
     Handles confirmation prompt internally and always shows podman output.
     """
-    log_verbose("--- Starting Safe Prune Operation ---")
+    log_debug("--- Starting Safe Prune Operation ---")
 
     # --- 1. Handle Confirmation ---
     if not force:
-        console.print(f"This will remove all unused Podman data (containers, images, networks, volumes)")
-        console.print(f"EXCEPT those with the label 'debox.managed=true'.")
+        log_info(f"This will remove all unused Podman data (containers, images, networks, volumes)")
+        log_info(f"EXCEPT those with the label 'debox.managed=true'.")
         # Ask for confirmation. abort=True exits script if user says 'no'.
         typer.confirm("Are you sure you want to continue?", abort=True)
 
@@ -32,7 +31,7 @@ def prune_resources(force: bool):
              # because we've either passed -f or received user confirmation.
     ]
 
-    log_verbose(f"-> Executing: {' '.join(command)}")
+    log_debug(f"-> Executing: {' '.join(command)}")
     
     # --- 3. Execute the command directly ---
     try:
@@ -43,10 +42,8 @@ def prune_resources(force: bool):
             stdout=None,
             stderr=None
         ) 
-        console.print("\n✅ Safe prune operation completed.")
+        log_info("\n✅ Safe prune operation completed.")
     except subprocess.CalledProcessError as e:
-        # Ten błąd wystąpi, jeśli podman zwróci kod błędu inny niż 0
-        console.print(f"\n❌ Error during safe prune operation: {e}")
+        log_error(f"\nSafe prune operation failed: {e}")
     except Exception as e:
-        # Inne błędy, np. nie znaleziono 'podman'
-        console.print(f"\n❌ An unexpected error occurred: {e}")
+        log_error(f"\nOperation failed: {e}")

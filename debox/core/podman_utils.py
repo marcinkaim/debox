@@ -2,33 +2,28 @@
 
 import subprocess
 import json
-import sys
 from typing import Optional, Dict
 from pathlib import Path
 
-from debox.core import state
-from debox.core.log_utils import console
+from debox.core import log_utils
+from debox.core.log_utils import log_debug, log_error, log_warning, console, LogLevels
 
-def run_command(command: list[str], input_str: str = None, capture_output: bool = False, check: bool = True, verbose: bool = None):
+def run_command(command: list[str], input_str: str = None, capture_output: bool = False, check: bool = True):
     """
     A helper function to run external commands, like podman.
+    Respects the global log level for printing output.
     """
-    # Determine verbosity
-    if verbose is None:
-        is_verbose = state.state.verbose # Use global state
-    else:
-        is_verbose = verbose # Use explicitly passed value
+    log_debug(f"--> Running command: {' '.join(command)}")
 
-    if is_verbose:
-        print(f"--> Running command: {' '.join(command)}")
-
-    # Determine stdout/stderr handling
-    stdout_pipe = None if is_verbose else subprocess.DEVNULL
-    stderr_pipe = None if is_verbose else subprocess.DEVNULL
+    stdout_pipe = None
+    stderr_pipe = None
     
-    if capture_output: # capture_output always overrides silencing
+    if capture_output:
         stdout_pipe = subprocess.PIPE
         stderr_pipe = subprocess.PIPE
+    elif log_utils.CURRENT_LOG_LEVEL > LogLevels.DEBUG:
+        stdout_pipe = subprocess.DEVNULL
+        stderr_pipe = subprocess.DEVNULL
 
     process = subprocess.run(
         command,
@@ -38,23 +33,21 @@ def run_command(command: list[str], input_str: str = None, capture_output: bool 
         stdout=stdout_pipe,
         stderr=stderr_pipe
     )
-
+    
     if capture_output:
         return process.stdout.strip()
-    
     return None
 
 def build_image(containerfile_content: str, tag: str, context_dir: Path, 
                 build_args: Optional[Dict[str, str]] = None, 
-                labels: Optional[Dict[str, str]] = None): # Add labels param
+                labels: Optional[Dict[str, str]] = None):
     """
     Builds a container image.
-    - In VERBOSE mode, streams all output to console.
-    - In SILENT mode, shows a spinner, logs output to a file, 
-      and prints the log file ONLY if an error occurs.
+    - In VERBOSE (DEBUG) mode, streams all output to console.
+    - In SILENT (INFO) mode, logs output to a file, and prints the log ONLY if an error occurs.
     """
     command = ["podman", "build", "-f", "-", "-t", tag]
-
+    
     if build_args:
         for key, value in build_args.items():
             command.extend(["--build-arg", f"{key}={value}"])
@@ -65,13 +58,13 @@ def build_image(containerfile_content: str, tag: str, context_dir: Path,
 
     command.append(str(context_dir))
 
-    if state.state.verbose:
-        print(f"--> Running build command (verbose): {' '.join(command)}")
+    if log_utils.CURRENT_LOG_LEVEL <= LogLevels.DEBUG:
+        log_debug(f"--> Running build command (verbose): {' '.join(command)}")
         subprocess.run(
             command,
             input=containerfile_content,
-            text=True,
-            check=True,
+            text=True, 
+            check=True, 
             stdout=None,
             stderr=None
         )
@@ -88,25 +81,23 @@ def build_image(containerfile_content: str, tag: str, context_dir: Path,
                     stderr=log_file,
                     check=False
                 )
-            
-                if process.returncode != 0:
-                    raise subprocess.CalledProcessError(process.returncode, command)
-            
-            log_file_path.unlink()
+
+            if process.returncode != 0:
+                console.print(f"\n❌ [bold red]Build failed! (Exit code {process.returncode})[/bold red]", style="bold red")
+                print(f"   Displaying build log from: {log_file_path}\n")
+                print("--- BEGIN BUILD LOG ---")
+                with open(log_file_path, 'r') as log_file:
+                    print(log_file.read())
+                print("--- END BUILD LOG ---")
+
+                raise subprocess.CalledProcessError(process.returncode, command, output=process.stdout, stderr=process.stderr)
+            else:
+                log_file_path.unlink()
 
         except subprocess.CalledProcessError as e:
-            console.print(f"\n❌ Build failed! (Exit code {e.returncode})", style="bold red")
-            print(f"   Displaying build log from: {log_file_path}\n")
-            print("--- BEGIN BUILD LOG ---")
-            with open(log_file_path, 'r') as log_file:
-                print(log_file.read())
-            print("--- END BUILD LOG ---")
-            #log_file_path.unlink()
             raise e
         except Exception as e:
-            print(f"\n❌ An unexpected error occurred during build: {e}")
-            raise e
-
+            log_error(f"An unexpected error occurred during build: {e}", exit_program=True)
 
 def create_container(name: str, image_tag: str, flags: list[str]):
     """
@@ -118,17 +109,18 @@ def create_container(name: str, image_tag: str, flags: list[str]):
 def get_container_status(container_name: str) -> str:
     """
     Checks the status of a Podman container.
+    (Silent by default)
     """
-    # Use exact name matching (^ and $) and JSON format for reliable parsing
     command = [
         "podman", "ps", "-a", 
         "--filter", f"name=^/{container_name}$", 
         "--format", "json"
     ]
     try:
-        is_verbose = state.state.verbose
+        is_verbose = (log_utils.CURRENT_LOG_LEVEL <= LogLevels.DEBUG)
+        
         if is_verbose:
-            print(f"--> Running command: {' '.join(command)}")
+            log_debug(f"--> Running command: {' '.join(command)}")
 
         process = subprocess.run(
             command, 
@@ -138,8 +130,7 @@ def get_container_status(container_name: str) -> str:
         )
         
         if process.returncode != 0:
-            if is_verbose:
-                print(f"Warning: 'podman ps' command failed: {process.stderr.strip()}")
+            log_debug(f"Warning: 'podman ps' command failed: {process.stderr.strip()}")
             return "Error"
             
         output = process.stdout.strip()
@@ -151,10 +142,10 @@ def get_container_status(container_name: str) -> str:
              return "Not Found"
 
         return container_info_list[0].get('State', 'Unknown')
-    
+
     except json.JSONDecodeError:
-        print(f"Warning: Could not parse JSON output from podman ps for {container_name}")
+        log_warning(f"Could not parse JSON output from podman ps for {container_name}")
         return "Error (JSON)"
     except Exception as e:
-        print(f"Warning: An unexpected error occurred checking status for {container_name}: {e}")
+        log_warning(f"An unexpected error occurred checking status for {container_name}: {e}")
         return "Error (Check)"
