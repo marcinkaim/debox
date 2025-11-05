@@ -122,13 +122,16 @@ def update_config_value(config: dict, path_str: str, action: str, value_str: str
     
     elif action == 'add':
         # Add to a list, creates list if not exists
-        target_list = parent.setdefault(final_key, []) # Get list or create new empty list
-        if isinstance(target_list, list):
-            typed_value = _convert_type(value_str)
+        target_list = parent.setdefault(final_key, []) 
+        if not isinstance(target_list, list):
+             raise TypeError(f"Cannot 'add' to non-list key: {path_str}")
+
+        typed_value = _convert_type(value_str)
+        if typed_value in target_list:
+            log_debug(f"  - Value '{value_str}' already in list {path_str}. Skipping.")
+        else:
             target_list.append(typed_value)
             log_debug(f"  - Added: {value_str} to {path_str}")
-        else:
-            raise TypeError(f"Cannot 'add' to non-list key: {path_str}")
             
     elif action == 'remove':
         # Remove from an *existing* list

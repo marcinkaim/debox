@@ -4,8 +4,14 @@ import typer
 from typing_extensions import Annotated
 from pathlib import Path
 
-from debox.core.log_utils import LogLevels, set_log_level
-
+from debox.core import autocompletion
+from debox.core.autocompletion import (
+    complete_container_names, 
+    complete_config_keys, 
+    complete_boolean_values,
+    LIST_KEYS, MAP_KEYS, BOOLEAN_KEYS
+)
+from debox.core.log_utils import LogLevels, log_error, set_log_level
 # Import the modules that will contain the logic for each command.
 # We will create these files in the next steps.
 from .commands import (
@@ -58,7 +64,10 @@ def install(
 
 @app.command()
 def remove(
-    container_name: Annotated[str, typer.Argument(help="The unique container name to remove (e.g., 'debox-firefox'). Use 'debox list' to see names.")],
+    container_name: Annotated[str, typer.Argument(
+        help="The unique container name to remove (e.g., 'debox-firefox'). Use 'debox list' to see names.",
+        autocompletion=complete_container_names
+    )],
     purge_home: Annotated[bool, typer.Option("--purge", help="Also remove the application's isolated home directory.")] = False
 ):
     """
@@ -77,7 +86,10 @@ def list_apps():
 
 @app.command()
 def run(
-    app_name: Annotated[str, typer.Argument(help="The name of the application container (e.g., 'debox-vscode').")],
+    app_name: Annotated[str, typer.Argument(
+        help="The name of the application container (e.g., 'debox-vscode').",
+        autocompletion=complete_container_names
+    )],
     # Capture extra arguments passed after app_name
     app_args: Annotated[list[str], typer.Argument(help="Arguments to pass to the application inside the container.",
                                                    hidden=True)] = None # 'hidden=True' hides it from --help
@@ -100,18 +112,85 @@ def safe_prune(
 
 @app.command()
 def configure(
-    container_name: Annotated[str, typer.Argument(help="The unique container name to configure (e.g., 'debox-firefox').")],
-    config_updates: Annotated[list[str], typer.Argument(help="Configuration updates in 'section.key:value' or 'section.key:action:value' format.")]
+    container_name: Annotated[str, typer.Argument(
+        help="The unique container name to configure.",
+        autocompletion=complete_container_names
+    )],
+    key: Annotated[str, typer.Option(
+        "--key", "-k",
+        help="The configuration key to modify (e.g., 'permissions.network').",
+        autocompletion=complete_config_keys
+    )],
+    
+    set_value: Annotated[str, typer.Option(
+        "--set", "-s",
+        help="Set a simple value (string or boolean).",
+        autocompletion=complete_boolean_values
+    )] = None,
+    
+    add_value: Annotated[str, typer.Option(
+        "--add",
+        help="Add a value to a list (e.g., image.packages)."
+    )] = None,
+    
+    remove_value: Annotated[str, typer.Option(
+        "--remove", "-r",
+        help="Remove a value from a list."
+    )] = None,
+    
+    map_value: Annotated[str, typer.Option(
+        "--map", "-m",
+        help="Set a key-value pair in a map (e.g., 'firefox-esr=ff-dev')."
+    )] = None,
+    
+    unmap_key: Annotated[str, typer.Option(
+        "--unmap", "-u",
+        help="Remove a key from a map."
+    )] = None
 ):
     """
     Modifies the configuration for an installed application.
     Changes must be applied with 'debox apply'.
     """
-    configure_cmd.configure_app(container_name, config_updates)
+    
+    actions = {
+        'set': set_value,
+        'add': add_value,
+        'remove': remove_value,
+        'set_map': map_value,
+        'unset_map': unmap_key,
+    }
+    
+    provided_actions = [(action, value) for action, value in actions.items() if value is not None]
 
+    if not key:
+        log_error("Option '--key' / '-k' is required.", exit_program=True)
+        
+    if not provided_actions:
+        log_error("You must provide an action: --set, --add, --remove, --map, or --unmap.", exit_program=True)
+        
+    if len(provided_actions) > 1:
+        log_error(f"Actions are mutually exclusive. You provided: {', '.join([a[0] for a in provided_actions])}", exit_program=True)
+
+    action_name, value = provided_actions[0]
+
+    if key in LIST_KEYS and action_name not in ("add", "remove"):
+        log_error(f"Action '--{action_name}' is invalid for list key '{key}'. Use --add or --remove.", exit_program=True)
+    if key in MAP_KEYS and action_name not in ("set_map", "unmap"):
+        log_error(f"Action '--{action_name}' is invalid for map key '{key}'. Use --map or --unmap.", exit_program=True)
+    if key in BOOLEAN_KEYS and action_name != "set":
+        log_error(f"Action '--{action_name}' is invalid for boolean/simple key '{key}'. Use --set.", exit_program=True)
+    if action_name == "unmap": 
+        action_name = "unset_map"
+    
+    configure_cmd.configure_app(container_name, key, value, action_name)
+    
 @app.command()
 def apply(
-    container_name: Annotated[str, typer.Argument(help="The unique container name to apply changes to.")]
+    container_name: Annotated[str, typer.Argument(
+        help="The unique container name to apply changes to.",
+        autocompletion=complete_container_names
+    )]
 ):
     """
     Applies any pending configuration changes made via 'debox configure'.
@@ -124,7 +203,10 @@ app.add_typer(network_app, name="network")
 
 @network_app.command("allow")
 def network_allow(
-    container_name: Annotated[str, typer.Argument(help="The unique container name to reconfigure.")]
+    container_name: Annotated[str, typer.Argument(
+        help="The unique container name to reconfigure.",
+        autocompletion=complete_container_names
+    )]
 ):
     """
     Sets 'permissions.network: true' in config and applies the change.
@@ -134,7 +216,10 @@ def network_allow(
 
 @network_app.command("deny")
 def network_deny(
-    container_name: Annotated[str, typer.Argument(help="The unique container name to reconfigure.")]
+    container_name: Annotated[str, typer.Argument(
+        help="The unique container name to reconfigure.",
+        autocompletion=complete_container_names
+    )]
 ):
     """
     Sets 'permissions.network: false' in config and applies the change.
