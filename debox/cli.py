@@ -1,5 +1,6 @@
 # debox/debox/cli.py
 
+from typing import Optional
 import typer
 from typing_extensions import Annotated
 from pathlib import Path
@@ -22,7 +23,10 @@ from .commands import (
     safe_prune_cmd, 
     configure_cmd,
     apply_cmd,
-    network_cmd
+    network_cmd,
+    reinstall_cmd,
+    upgrade_cmd,
+    repair_cmd
 )
 
 def main_callback(
@@ -52,30 +56,80 @@ app = typer.Typer(
 
 @app.command()
 def install(
-    # The validation logic (exists=True, etc.) stays inside typer.Argument.
-    config_file: Annotated[Path, 
-                           typer.Argument(exists=True, file_okay=True, dir_okay=False, 
-                                          readable=True, help="Path to the application's .yml configuration file.")]
+    container_name: Annotated[Optional[str], typer.Argument(
+        help="The unique container name (optional if --config is used).",
+        autocompletion=autocompletion.complete_container_names,
+        show_default=False
+    )] = None,
+    config_file: Annotated[Optional[Path], typer.Option(
+        "--config", "-c",
+        help="Path to the .yml config file (required for a new install).",
+        exists=True,
+        file_okay=True,
+        dir_okay=False,
+        readable=True
+    )] = None
 ):
     """
-    Builds, creates, and integrates an application from a config file.
+    Installs a new application from a config file.
+    Use 'debox apply' or 'debox reinstall' to repair/update.
     """
-    install_cmd.install_app(config_file)
+    
+    if not container_name and not config_file:
+        log_error("You must provide a container name, a --config file, or both.")
+        raise typer.Exit(code=1)
+        
+    install_cmd.install_app(container_name, config_file)
 
 @app.command()
 def remove(
     container_name: Annotated[str, typer.Argument(
-        help="The unique container name to remove (e.g., 'debox-firefox'). Use 'debox list' to see names.",
-        autocompletion=complete_container_names
+        help="The unique container name to remove.",
+        autocompletion=autocompletion.complete_container_names
     )],
-    purge_home: Annotated[bool, typer.Option("--purge", help="Also remove the application's isolated home directory.")] = False
+    # Poprawka w opisie flagi
+    purge_home: Annotated[bool, typer.Option("--purge", help="Also remove the config and isolated home directory.")] = False
 ):
     """
-    Removes an application's container, image, and desktop integration.
-    By default, keeps the isolated home directory unless --purge is used.
+    Removes container, image, and desktop integration.
+    By default, keeps config and data. Use --purge to remove everything.
     """
-    # Pass the flag to the backend function
     remove_cmd.remove_app(container_name, purge_home)
+
+@app.command("reinstall")
+def reinstall(
+     container_name: Annotated[str, typer.Argument(
+        help="The unique container name to reinstall.",
+        autocompletion=autocompletion.complete_container_names
+    )],
+    config_file: Annotated[Optional[Path], typer.Option(
+        "--config", "-c",
+        help="Path to a new .yml config file to use for the reinstall.",
+        exists=True,
+        file_okay=True,
+        dir_okay=False,
+        readable=True
+    )] = None
+):
+    """
+    Forces a clean reinstall (remove artifacts + install).
+    Keeps the isolated home directory by default.
+    Uses --config to replace the existing configuration.
+    """
+    reinstall_cmd.reinstall_app(container_name, config_file)
+
+@app.command("repair")
+def repair(
+     container_name: Annotated[str, typer.Argument(
+        help="The unique container name to repair.",
+        autocompletion=autocompletion.complete_container_names
+    )]
+):
+    """
+    Repairs an installation by recreating the container and reintegrating.
+    This does NOT rebuild the image or touch your data.
+    """
+    repair_cmd.repair_app(container_name)
 
 @app.command(name="list") # Use 'name' to avoid conflict with the Python keyword 'list'
 def list_apps():
@@ -226,6 +280,19 @@ def network_deny(
     This will recreate the container.
     """
     network_cmd.deny_network(container_name)
+
+@app.command()
+def upgrade(
+    container_name: Annotated[str, typer.Argument(
+        help="The unique container name to upgrade.",
+        autocompletion=autocompletion.complete_container_names
+    )]
+):
+    """
+    Upgrades all packages inside a container (in-place 'apt upgrade').
+    This is a fast update. Does not change configuration.
+    """
+    upgrade_cmd.upgrade_app(container_name)
 
 if __name__ == "__main__":
     app()

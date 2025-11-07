@@ -14,13 +14,21 @@ from debox.core.log_utils import log_debug, log_error, log_warning
 
 # Define the sections we care about hashing
 SECTIONS_TO_HASH = ['image', 'storage', 'runtime', 'integration', 'permissions']
+
+# --- Constants for state files ---
 STATE_FILE_NAME = ".last_applied_state.json"
 FLAG_FILE_NAME = ".needs_apply"
+STATUS_FILE_NAME = ".installation_status"
+
+# --- Constants for status ---
+STATUS_INSTALLED = "INSTALLED"
+STATUS_NOT_INSTALLED = "NOT_INSTALLED"
 
 
 def _calculate_section_hash(section_data: Any) -> str:
     """
-Seralizes a config section and returns its SHA256 hash."""
+    Seralizes a config section and returns its SHA256 hash.
+    """
     if section_data is None:
         return hashlib.sha256(b"").hexdigest()
         
@@ -99,3 +107,52 @@ def remove_needs_apply_flag(app_config_dir: Path):
             flag_file.unlink()
         except Exception as e:
             log_warning(f"Could not remove .needs_apply flag: {e}")
+
+def get_installation_status(app_config_dir: Path) -> str:
+    """
+    Checks the installation status file for an app.
+    Defaults to NOT_INSTALLED if the file or directory doesn't exist.
+    """
+    status_file = app_config_dir / STATUS_FILE_NAME
+    if not status_file.is_file():
+        # If the config dir doesn't even exist, it's definitely not installed
+        log_debug(f"Status file not found at {status_file}. Defaulting to NOT_INSTALLED.")
+        return STATUS_NOT_INSTALLED
+    
+    try:
+        status = status_file.read_text().strip()
+        if status in (STATUS_INSTALLED, STATUS_NOT_INSTALLED):
+            return status
+        else:
+            log_warning(f"Unknown status '{status}' in {status_file}. Defaulting to NOT_INSTALLED.")
+            return STATUS_NOT_INSTALLED
+    except Exception as e:
+        log_warning(f"Could not read status file {status_file}: {e}. Defaulting to NOT_INSTALLED.")
+        return STATUS_NOT_INSTALLED
+
+def set_installation_status(app_config_dir: Path, status: str):
+    """
+    Writes the installation status (INSTALLED or NOT_INSTALLED) to the file.
+    """
+    if status not in (STATUS_INSTALLED, STATUS_NOT_INSTALLED):
+        raise ValueError(f"Invalid status '{status}'. Must be INSTALLED or NOT_INSTALLED.")
+        
+    status_file = app_config_dir / STATUS_FILE_NAME
+    try:
+        # Ensure the parent directory exists
+        app_config_dir.mkdir(parents=True, exist_ok=True)
+        status_file.write_text(status)
+        log_debug(f"-> Set installation status to '{status}' in {status_file}")
+    except Exception as e:
+        log_error(f"Failed to write installation status to {status_file}: {e}", exit_program=True)
+
+def remove_installation_status_file(app_config_dir: Path):
+    """
+    Removes the .installation_status file. Used during --purge.
+    """
+    status_file = app_config_dir / STATUS_FILE_NAME
+    if status_file.is_file():
+        try:
+            status_file.unlink()
+        except Exception as e:
+            log_warning(f"Could not remove status file {status_file}: {e}")

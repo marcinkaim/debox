@@ -63,7 +63,6 @@ def log_error(message: str, exit_program: bool = False):
     if exit_program:
         sys.exit(1)
 
-# --- 5. Zaktualizowany 'run_step' ---
 @contextlib.contextmanager
 def run_step(spinner_message: str, success_message: str, error_message: str):
     """

@@ -8,12 +8,11 @@ container_name: "debox-vscode"
 # --- Container Image Definition ---
 image:
   base: "debian:latest"
-  repositories:
-    - key_url: "https://packages.microsoft.com/keys/microsoft.asc"
-      key_path: "/etc/apt/keyrings/packages.microsoft.gpg"
-      repo_string: "deb [arch=amd64 signed-by=/etc/apt/keyrings/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main"
+  repositories: []
+
+  local_debs:
+    - "~/Pobrane/code_1.105.1-1760482543_amd64.deb"
   packages:
-    - "code"
     - "git"
     - "build-essential"
     - "podman"

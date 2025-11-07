@@ -67,14 +67,31 @@ def _generate_containerfile(config: dict, host_user: str, host_uid: int, host_lo
             else:
                 log_debug(f"-> Adding keyless repository: {repo_string}")
             
-            list_filename = repo.get('list_filename', f"debox-repo-{repo_counter}.list")
+            list_filename = repo.get('list_filename')
+            if not list_filename:
+                list_filename = f"{config['container_name']}-repo-{repo_counter}.sources"
+
             lines.append(f"RUN echo \"{repo_string}\" > /etc/apt/sources.list.d/{list_filename}")
             repo_counter += 1
 
     # Handle package installation
     packages_to_install = image_cfg.get('packages', [])
-    if packages_to_install:
-        packages_str = " ".join(packages_to_install)
+
+    local_debs_to_install = []
+
+    local_debs_config = image_cfg.get('local_debs', [])
+    if local_debs_config:
+        lines.append("\n# Copy local .deb packages")
+        lines.append("RUN mkdir -p /tmp/debox_debs") 
+        for deb_path_str in local_debs_config:
+            deb_filename = Path(os.path.expanduser(deb_path_str)).name
+            container_deb_path = f"/tmp/debox_debs/{deb_filename}"
+            lines.append(f"COPY {deb_filename} {container_deb_path}")
+            local_debs_to_install.append(container_deb_path) 
+
+    all_packages_str = " ".join(packages_to_install + local_debs_to_install)
+
+    if all_packages_str.strip():
         
         target_release = image_cfg.get('apt_target_release')
         install_cmd = "apt-get install -y"
@@ -84,7 +101,7 @@ def _generate_containerfile(config: dict, host_user: str, host_uid: int, host_lo
             install_cmd += f" -t {target_release}"
             lines.append(f"RUN echo 'APT::Default-Release \"{target_release}\";' > /etc/apt/apt.conf.d/99debox-target")
 
-        lines.append(f"RUN apt-get update && {install_cmd} {packages_str} && apt-get clean")
+        lines.append(f"RUN apt-get update && {install_cmd} {all_packages_str} && apt-get clean && rm -rf /tmp/debox_debs /var/lib/apt/lists/*")
 
     # Create the user
     lines.append(f"RUN useradd -m -s /bin/bash -u $HOST_UID $HOST_USER")

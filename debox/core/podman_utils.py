@@ -78,7 +78,7 @@ def build_image(containerfile_content: str, tag: str, context_dir: Path,
                     input=containerfile_content,
                     text=True,
                     stdout=log_file,
-                    stderr=log_file,
+                    stderr=subprocess.STDOUT,
                     check=False
                 )
 
