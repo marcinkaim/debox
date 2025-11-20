@@ -6,7 +6,7 @@ Handles runtime network changes by acting as a shortcut for
 """
 
 import sys
-from debox.core import config as config_utils
+from debox.core import config_utils
 # Import the command logic we are going to call
 from debox.commands import configure_cmd
 from debox.commands import apply_cmd

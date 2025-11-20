@@ -8,7 +8,7 @@ to detect changes and determine required actions.
 import json
 import hashlib
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from debox.core.log_utils import log_debug, log_error, log_warning
 
@@ -23,6 +23,8 @@ STATUS_FILE_NAME = ".installation_status"
 # --- Constants for status ---
 STATUS_INSTALLED = "INSTALLED"
 STATUS_NOT_INSTALLED = "NOT_INSTALLED"
+
+STATE_KEY_REGISTRY_DIGEST = "registry_digest"
 
 
 def _calculate_section_hash(section_data: Any) -> str:
@@ -156,3 +158,34 @@ def remove_installation_status_file(app_config_dir: Path):
             status_file.unlink()
         except Exception as e:
             log_warning(f"Could not remove status file {status_file}: {e}")
+
+def save_image_digest(app_config_dir: Path, digest: str):
+    """
+    Saves digest of pushed image to state file.
+    """
+    state_file = app_config_dir / STATE_FILE_NAME
+    # Wczytaj istniejące hashe, aby ich nie nadpisać
+    hashes = get_last_applied_hashes(app_config_dir)
+    
+    # Dodaj lub zaktualizuj digest
+    hashes[STATE_KEY_REGISTRY_DIGEST] = digest
+    
+    # Zapisz z powrotem
+    save_last_applied_hashes(app_config_dir, hashes)
+    log_debug(f"-> Saved registry digest {digest} to {state_file}")
+
+def get_image_digest(app_config_dir: Path) -> Optional[str]:
+    """
+    Reads saved digest from state file.
+    """
+    hashes = get_last_applied_hashes(app_config_dir)
+    return hashes.get(STATE_KEY_REGISTRY_DIGEST)
+
+def remove_image_digest(app_config_dir: Path):
+    """
+    Removes digest from state file.
+    """
+    hashes = get_last_applied_hashes(app_config_dir)
+    if STATE_KEY_REGISTRY_DIGEST in hashes:
+        del hashes[STATE_KEY_REGISTRY_DIGEST]
+        save_last_applied_hashes(app_config_dir, hashes)

@@ -1,6 +1,7 @@
 # debox/commands/configure_cmd.py
 
-from debox.core import config as config_utils, hash_utils
+from debox.core import hash_utils
+from debox.core import config_utils
 from debox.core.log_utils import log_debug, log_error, log_info
 
 def configure_app(container_name: str, key: str, value: str, action: str):

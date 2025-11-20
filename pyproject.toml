@@ -39,6 +39,7 @@ dependencies = [
     "typer", # For creating a rich command-line interface. '[all]' includes helpful extras.
     "PyYAML",     # For parsing the .yml configuration files.
     "rich",
+    "requests",
 ]
 
 # This section is crucial. It creates the command-line entry points.

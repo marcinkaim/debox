@@ -10,19 +10,28 @@ import os
 import locale
 import getpass
 
+from debox.core import registry_utils
 from debox.core.log_utils import log_debug, log_error, log_warning
 
 # Import necessary functions/constants from other core modules
 from . import podman_utils
-from . import config as config_utils
+from . import config_utils
 
 # --- Private Helper Functions (Moved from install_cmd.py) ---
 
 def _generate_containerfile(config: dict, host_user: str, host_uid: int, host_locale: str) -> str:
     """
     Generates the content of the Containerfile based on the YAML config.
+    Intelligently skips steps if the base image is likely already a debox image.
     """
-    lines = [f"FROM {config['image']['base']}"]
+    base_image = config['image']['base']
+    
+    # --- WYKRYWANIE OBRAZU BAZOWEGO DEBOX ---
+    # Jeśli obraz bazowy pochodzi z localhost, zakładamy, że jest to
+    # obraz zarządzany przez debox, który ma już użytkownika, locales i keep_alive.
+    is_debox_base = base_image.startswith("localhost/") or base_image.startswith("localhost:5000/")
+
+    lines = [f"FROM {base_image}"]
     lines.append(f"ARG HOST_USER={host_user}")
     lines.append(f"ARG HOST_UID={host_uid}")
     lines.append(f"ARG HOST_LOCALE={host_locale}")
@@ -30,22 +39,25 @@ def _generate_containerfile(config: dict, host_user: str, host_uid: int, host_lo
 
     image_cfg = config.get('image', {})
 
-    components = image_cfg.get('debian_components', [])
-    if components:
-        components_str = " ".join(components)
-        log_debug(f"-> Enabling Debian components: {components_str}")
-        lines.append(
-            f"RUN sed -i -e 's/ main/ main {components_str}/g' /etc/apt/sources.list.d/debian.sources"
-        )
+    if not is_debox_base:
+        components = image_cfg.get('debian_components', [])
+        if components:
+            components_str = " ".join(components)
+            log_debug(f"-> Enabling Debian components: {components_str}")
+            lines.append(
+                f"RUN sed -i -e 's/ main/ main {components_str}/g' /etc/apt/sources.list.d/debian.sources"
+            )
+        else:
+            log_debug("-> No additional Debian components requested.")
+
+        lines.append("RUN apt-get update && apt-get install -y wget gpg sudo locales python3 && apt-get clean")
+
+        # Locale generation
+        lines.append(f"RUN sed -i -e 's/# $HOST_LOCALE UTF-8/$HOST_LOCALE UTF-8/' /etc/locale.gen")
+        lines.append(f"RUN dpkg-reconfigure --frontend=noninteractive locales")
+        lines.append(f"ENV LANG=$HOST_LOCALE")
     else:
-        log_debug("-> No additional Debian components requested.")
-
-    lines.append("RUN apt-get update && apt-get install -y wget gpg sudo locales python3 && apt-get clean")
-
-    # Locale generation
-    lines.append(f"RUN sed -i -e 's/# $HOST_LOCALE UTF-8/$HOST_LOCALE UTF-8/' /etc/locale.gen")
-    lines.append(f"RUN dpkg-reconfigure --frontend=noninteractive locales")
-    lines.append(f"ENV LANG=$HOST_LOCALE")
+        pass
 
     # Handle repositories
     repo_list = image_cfg.get('repositories', [])
@@ -103,15 +115,20 @@ def _generate_containerfile(config: dict, host_user: str, host_uid: int, host_lo
 
         lines.append(f"RUN apt-get update && {install_cmd} {all_packages_str} && apt-get clean && rm -rf /tmp/debox_debs /var/lib/apt/lists/*")
 
-    # Create the user
-    lines.append(f"RUN useradd -m -s /bin/bash -u $HOST_UID $HOST_USER")
-    lines.append(f"RUN usermod -aG sudo $HOST_USER")
-    lines.append(f'RUN echo "$HOST_USER ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers')
+    if not is_debox_base:
+        # Create the user
+        lines.append(f"RUN useradd -m -s /bin/bash -u $HOST_UID $HOST_USER")
+        lines.append(f"RUN usermod -aG sudo $HOST_USER")
+        lines.append(f'RUN echo "$HOST_USER ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers')
 
-    # Copy keep_alive script if exists in context
-    lines.append("COPY keep_alive.py /usr/local/bin/keep_alive.py")
-    lines.append("RUN chmod +x /usr/local/bin/keep_alive.py")
-    lines.append('CMD ["/usr/local/bin/keep_alive.py"]')
+        # Copy keep_alive script if exists in context
+        lines.append("COPY keep_alive.py /usr/local/bin/keep_alive.py")
+        lines.append("RUN chmod +x /usr/local/bin/keep_alive.py")
+        lines.append('CMD ["/usr/local/bin/keep_alive.py"]')
+    else:
+        lines.append("COPY keep_alive.py /usr/local/bin/keep_alive.py")
+        lines.append("RUN chmod +x /usr/local/bin/keep_alive.py")
+        lines.append('CMD ["/usr/local/bin/keep_alive.py"]')
 
     return "\n".join(lines)
 
@@ -372,3 +389,36 @@ def remove_container_image(container_name: str):
         log_debug(f"--> Image '{image_tag}' removed.")
     except Exception as e:
         log_warning(f"  Failed to remove image (might be already removed or in use): {e}")
+
+def restore_container_from_registry(config: dict) -> bool:
+    """
+    Checks if the container exists. If not, attempts to restore it
+    by checking for a local image, or pulling from the registry.
+    Returns True if restoration was performed, False if not needed or failed.
+    """
+    container_name = config['container_name']
+    image_tag = f"localhost/{container_name}:latest"
+
+    status = podman_utils.get_container_status(container_name)
+    if "run" in status.lower() or "exited" in status.lower() or "created" in status.lower():
+        return False
+
+    print(f"-> Container '{container_name}' missing. Initiating restore sequence...")
+
+    if not podman_utils.local_image_exists(image_tag):
+        print(f"-> Local image '{image_tag}' missing. Attempting pull from registry...")
+        try:
+            # To używa run_step wewnątrz registry_utils (jeśli tam jest) lub musimy to obsłużyć
+            # registry_utils.pull_image_from_registry rzuca wyjątek w razie błędu
+            registry_utils.pull_image_from_registry(container_name)
+            print("-> Image restored from registry.")
+        except Exception as e:
+            print(f"❌ Error: Failed to pull image from registry: {e}")
+            raise # Przekaż błąd wyżej
+    else:
+        print("-> Local image found.")
+
+    print("-> Recreating container instance...")
+    create_container_instance(config, image_tag)
+    
+    return True

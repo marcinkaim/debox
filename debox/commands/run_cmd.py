@@ -5,8 +5,8 @@ import os
 import subprocess
 import shlex
 import sys
-from debox.core import podman_utils
-from debox.core import config as config_utils
+from debox.core import container_ops, podman_utils
+from debox.core import config_utils
 from debox.core.log_utils import log_debug, log_error
 
 def run_app(container_name: str, app_command_and_args: list[str]):
@@ -31,6 +31,13 @@ def run_app(container_name: str, app_command_and_args: list[str]):
         except Exception as e:
             log_error(f"Loading config file {config_path} failed: {e}", exit_program=True)
 
+        try:
+            # Ta funkcja sama sprawdzi status i wykona pull/create tylko jeśli trzeba
+            if container_ops.restore_container_from_registry(config):
+                print(f"-> Auto-restoration of '{container_name}' successful. Launching...")
+        except Exception as e:
+            log_error(f"Failed to auto-restore container: {e}. Cannot run application.", exit_program=True)
+            
         # --- 2. Determine Command to Run ---
         runtime_cfg = config.get('runtime', {})
         prepend_args = runtime_cfg.get('prepend_exec_args', [])

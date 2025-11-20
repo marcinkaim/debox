@@ -1,10 +1,11 @@
 # debox/commands/repair_cmd.py
 
 
-from debox.core import config as config_utils, podman_utils
+from debox.core import podman_utils
 from debox.core import hash_utils
 from debox.core import container_ops
 from debox.core import desktop_integration
+from debox.core import config_utils
 from debox.core.log_utils import log_debug, run_step, console, log_info, log_error
 
 def repair_app(container_name: str):

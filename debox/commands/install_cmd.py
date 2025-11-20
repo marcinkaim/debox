@@ -5,7 +5,7 @@ from pathlib import Path
 import os
 from typing import Optional
 
-from debox.core import config as config_utils
+from debox.core import config_utils, podman_utils, registry_utils
 from debox.core import desktop_integration
 from debox.core import container_ops
 from debox.core import hash_utils
@@ -68,7 +68,7 @@ def install_app(container_name: Optional[str], config_path: Optional[Path]):
                 log_info(f"-> New installation for '{final_container_name}'.")
             
             try:
-                shutil.copy(config_path, existing_config_path)
+                shutil.copy2(config_path, existing_config_path)
                 log_debug(f"-> Copied new config to {existing_config_path}")
             except Exception as e:
                 log_error(f"Failed to copy config file: {e}", exit_program=True)
@@ -95,7 +95,8 @@ def install_app(container_name: Optional[str], config_path: Optional[Path]):
         current_dir = Path(__file__).parent
         keep_alive_script_src = current_dir.parent / "core" / "keep_alive.py"
         if keep_alive_script_src.is_file():
-            shutil.copy(keep_alive_script_src, app_config_dir / "keep_alive.py")
+            keep_alive_script_dest = app_config_dir / "keep_alive.py"
+            shutil.copy2(keep_alive_script_src, keep_alive_script_dest)
             log_debug(f"-> Copied keep_alive.py to build context.")
         
         local_debs = config.get('image', {}).get('local_debs', [])
@@ -106,26 +107,59 @@ def install_app(container_name: Optional[str], config_path: Optional[Path]):
                 if not deb_path.is_file():
                     raise FileNotFoundError(f"Local package not found: {deb_path}")
                 dest_path = app_config_dir / deb_path.name
-                shutil.copy(deb_path, dest_path)
+                shutil.copy2(deb_path, dest_path)
                 log_debug(f"--> Copied {deb_path.name}")
             
         console.print("-> Configuration loaded and prepared.")
     except Exception as e:
         log_error(f"Error preparing config directory: {e}", exit_program=True)
     
+    old_image_id = None
+    image_tag = f"localhost/{final_container_name}:latest"
+    try:
+        old_image_id = podman_utils.run_command(
+            ["podman", "image", "inspect", image_tag, "--format", "{{.Id}}"], 
+            capture_output=True, check=False
+        )
+    except Exception:
+        pass
+
     with run_step(f"Building image 'localhost/{final_container_name}:latest'...", "-> Image built successfully.", "Error building image"):
         image_tag = container_ops.build_container_image(config, app_config_dir)
     
+    if old_image_id:
+        try:
+            new_image_id = podman_utils.run_command(
+                ["podman", "image", "inspect", image_tag, "--format", "{{.Id}}"],
+                capture_output=True, check=True
+            )
+            
+            if old_image_id != new_image_id:
+                log_debug(f"-> Cleaning up old image version ({old_image_id})...")
+                podman_utils.run_command(["podman", "rmi", old_image_id], check=False)
+        except Exception as e:
+            log_debug(f"Warning: Could not cleanup old image: {e}")
+
     with run_step(f"Creating container '{final_container_name}'...", "-> Container created successfully.", "Error creating container"):
         container_ops.create_container_instance(config, image_tag)
     
     with run_step("Applying desktop integration...", "-> Desktop integration applied.", "Error during desktop integration"):
         desktop_integration.add_desktop_integration(config)
 
+    image_digest = None
+    with run_step(
+        spinner_message="Backing up image to local registry...",
+        success_message="-> Image backed up successfully.",
+        error_message="Error backing up image"
+    ):
+        image_digest = registry_utils.push_image_to_registry(image_tag)
+        
     try:
         log_debug("-> Finalizing installation state...")
         current_hashes = hash_utils.calculate_hashes(config)
         hash_utils.save_last_applied_hashes(app_config_dir, current_hashes)
+        if image_digest:
+            hash_utils.save_image_digest(app_config_dir, image_digest)
         hash_utils.set_installation_status(app_config_dir, hash_utils.STATUS_INSTALLED)
         hash_utils.remove_needs_apply_flag(app_config_dir)
         log_debug("-> Installation state finalized.")

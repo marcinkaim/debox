@@ -1,0 +1,27 @@
+version: 1
+
+image_name: "debox-base"
+
+image:
+  base: "debian:latest"
+  
+  debian_components:
+    - "contrib"
+    - "non-free"
+    - "non-free-firmware"
+
+  packages:
+    - "python3"
+    - "locales"
+    - "sudo"
+    - "wget"
+    - "gpg"
+    - "ca-certificates"
+    - "fontconfig"
+    - "libfontconfig1"
+    - "fonts-noto-core"
+    - "fonts-dejavu-core"
+    - "fonts-cantarell"
+    - "fonts-liberation2"
+    - "libpulse0"
+    - "libcanberra-gtk3-module"

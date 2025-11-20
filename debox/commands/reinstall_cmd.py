@@ -2,7 +2,7 @@
 
 from pathlib import Path
 from typing import Optional
-from debox.core import config, hash_utils
+from debox.core import config_utils, hash_utils
 from debox.core.log_utils import log_debug, log_info, log_error, console
 from debox.commands import install_cmd
 from debox.commands import remove_cmd
@@ -14,7 +14,7 @@ def reinstall_app(container_name: str, config_path: Optional[Path]):
     """
     log_info(f"--- Reinstalling application: {container_name} ---")
     
-    app_config_dir = config.get_app_config_dir(container_name, create=False)
+    app_config_dir = config_utils.get_app_config_dir(container_name, create=False)
     installation_status = hash_utils.get_installation_status(app_config_dir)
     
     if not config_path and not (app_config_dir / "config.yml").is_file():

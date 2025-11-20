@@ -17,7 +17,7 @@ from debox.core.log_utils import log_debug, log_error, log_warning
 
 # Import necessary functions/constants from other core modules
 from . import podman_utils
-from . import config as config_utils # Use 'as' to avoid naming conflict
+from . import config_utils
 
 # --- Main Public Function for Installation ---
 def add_desktop_integration(config: dict):

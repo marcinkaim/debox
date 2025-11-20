@@ -7,21 +7,11 @@ container_name: "debox-firefox"
 
 # --- Container Image Definition ---
 image:
-  base: "debian:latest"
+  base: "localhost/debox-base:latest"
   repositories:
   packages:
     - "firefox-esr"
     - "firefox-esr-l10n-pl"
-    - "libpulse0"
-    - "fonts-noto-core"
-    - "fonts-dejavu-core"
-    - "fonts-cantarell"
-    - "fonts-liberation2"
-    - "fontconfig"
-    - "libfontconfig1"
-    - "libcanberra-gtk3-module"
-    - "python3" # Keep alive script
-    - "locales" # Locale generation
 
 # --- Storage Configuration ---
 storage:

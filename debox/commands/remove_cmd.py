@@ -2,8 +2,9 @@
 
 import shutil
 
-from debox.core import config as config_utils, container_ops, hash_utils
+from debox.core import container_ops, hash_utils
 from debox.core import desktop_integration
+from debox.core import config_utils
 from debox.core.log_utils import log_debug, log_error, log_info, log_warning, run_step
 
 def remove_app(container_name: str, purge_home: bool):

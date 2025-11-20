@@ -1,0 +1,10 @@
+version: 1
+image_name: "debox-base-minimal"
+
+image:
+  base: "debian:latest"
+  debian_components: []
+  packages:
+    - "python3"
+    - "locales"
+    - "sudo"

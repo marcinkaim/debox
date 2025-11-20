@@ -1,6 +1,7 @@
 # debox/debox/cli.py
 
 from typing import Optional
+from debox.commands import image_cmd
 import typer
 from typing_extensions import Annotated
 from pathlib import Path
@@ -26,7 +27,8 @@ from .commands import (
     network_cmd,
     reinstall_cmd,
     upgrade_cmd,
-    repair_cmd
+    repair_cmd,
+    system_cmd
 )
 
 def main_callback(
@@ -293,6 +295,103 @@ def upgrade(
     This is a fast update. Does not change configuration.
     """
     upgrade_cmd.upgrade_app(container_name)
+
+system_app = typer.Typer(help="Manage the debox runtime environment (registry, etc.).")
+app.add_typer(system_app, name="system")
+
+@system_app.command("setup-registry")
+def setup_registry():
+    """
+    Creates and configures a local, rootless Podman registry.
+    This command is idempotent (safe to run multiple times).
+    """
+    system_cmd.setup_registry()
+
+image_app = typer.Typer(help="Manage local and registry images.")
+app.add_typer(image_app, name="image")
+
+@image_app.command("push")
+def image_push(
+    container_name: Annotated[str, typer.Argument(
+        help="The container name (e.g., 'debox-firefox') whose image you want to push.",
+        autocompletion=autocompletion.complete_container_names
+    )]
+):
+    """
+    Pushes the built local image for an app to the local registry.
+    """
+    image_cmd.push_image(container_name)
+
+@image_app.command("list")
+def image_list():
+    """
+    Lists all images currently backed up in the local debox registry.
+    """
+    image_cmd.list_images()
+
+@image_app.command("rm")
+def image_rm(
+    image_name: Annotated[str, typer.Argument(
+        help="The name of the image in the registry (e.g., 'debox-firefox').",
+        # TODO: Stworzyć autouzupełnianie dla obrazów z rejestru
+    )],
+    tag: Annotated[str, typer.Argument(
+        help="The tag of the image to remove (e.g., 'latest')."
+    )] = "latest" # Domyślnie 'latest'
+):
+    """
+    Permanently deletes an image (by tag) from the local debox registry.
+    """
+    image_cmd.remove_image_from_registry(image_name, tag)
+
+@image_app.command("pull")
+def image_pull(
+    image_name: Annotated[str, typer.Argument(
+        help="The name of the image to pull (e.g. 'debox-firefox' or 'debox-firefox:latest')."
+    )]
+):
+    """
+    Restores an image from the local registry to the Podman cache.
+    """
+    image_cmd.pull_image(image_name)
+
+@image_app.command("prune")
+def image_prune(
+    dry_run: Annotated[bool, typer.Option("--dry-run", help="Show what would be deleted without deleting.")] = False
+):
+    """
+    Runs Garbage Collection on the local registry to free up disk space.
+    Removes unreferenced blobs and layers.
+    """
+    image_cmd.prune_registry(dry_run)
+
+@image_app.command("restore")
+def image_restore(
+    container_name: Annotated[Optional[str], typer.Argument(
+        help="The specific container to restore.",
+        autocompletion=autocompletion.complete_container_names
+    )] = None,
+    all_apps: Annotated[bool, typer.Option(
+        "--all", "-a",
+        help="Restore all configured applications that are missing."
+    )] = False
+):
+    """
+    Restores missing containers/images from the registry using local config.
+    """
+    image_cmd.restore_images(container_name, all_apps)
+
+@image_app.command("build")
+def image_build(
+    config_file: Annotated[Path, typer.Argument(
+        help="Path to the .yml config file for the base image.",
+        exists=True, file_okay=True, dir_okay=False, readable=True
+    )]
+):
+    """
+    Builds a shared base image from a config file and pushes it to the registry.
+    """
+    image_cmd.build_base_image(config_file)
 
 if __name__ == "__main__":
     app()

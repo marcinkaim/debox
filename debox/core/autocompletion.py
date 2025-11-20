@@ -11,7 +11,7 @@ import typer
 import yaml
 from typing import List
 
-from debox.core import config as config_utils
+from debox.core import config_utils
 
 def complete_container_names() -> List[str]:
     """
@@ -65,12 +65,10 @@ MAP_KEYS = [
     "integration.aliases",
 ]
     
-# --- 3. Autouzupełnianie kluczy (bez zmian) ---
 def complete_config_keys(incomplete: str) -> List[str]:
     """Sugeruje tylko klucze (bez ':')"""
     return [key for key in VALID_CONFIG_KEYS if key.startswith(incomplete)]
 
-# --- 4. NOWA, PROSTA funkcja autouzupełniania wartości boolean ---
 def complete_boolean_values(incomplete: str) -> List[str]:
     """Sugeruje tylko 'true' lub 'false'."""
     if "true".startswith(incomplete):

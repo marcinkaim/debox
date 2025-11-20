@@ -3,7 +3,7 @@
 import shutil
 from pathlib import Path
 
-from debox.core import config as config_utils
+from debox.core import config_utils
 from debox.core import hash_utils
 from debox.core import container_ops
 from debox.core import desktop_integration

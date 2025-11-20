@@ -106,6 +106,19 @@ def create_container(name: str, image_tag: str, flags: list[str]):
     command = ["podman", "create", "--name", name] + flags + [image_tag]
     run_command(command)
 
+def local_image_exists(image_tag: str) -> bool:
+    """Sprawdza, czy obraz istnieje w lokalnym cache Podmana."""
+    log_debug(f"Checking for local image: {image_tag}")
+    img_inspect_cmd = ["podman", "image", "inspect", image_tag]
+    try:
+        # Użyj run_command, aby był cichy i sprawdzał błąd
+        run_command(img_inspect_cmd, capture_output=True, check=True)
+        log_debug(f"-> Local image '{image_tag}' found.")
+        return True
+    except Exception:
+        log_debug(f"-> Local image '{image_tag}' not found.")
+        return False
+    
 def get_container_status(container_name: str) -> str:
     """
     Checks the status of a Podman container.
@@ -135,11 +148,19 @@ def get_container_status(container_name: str) -> str:
             
         output = process.stdout.strip()
         if not output or output == '[]':
-            return "Not Found"
+            image_tag = f"localhost/{container_name}:latest"
+            if local_image_exists(image_tag):
+                return "Not Found (Image Exists)"
+            else:
+                return "Not Found (No Image)"
             
         container_info_list = json.loads(output)
         if not container_info_list:
-             return "Not Found"
+            image_tag = f"localhost/{container_name}:latest"
+            if local_image_exists(image_tag):
+                return "Not Found (Image Exists)"
+            else:
+                return "Not Found (No Image)"
 
         return container_info_list[0].get('State', 'Unknown')
 

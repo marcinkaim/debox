@@ -2,7 +2,7 @@
 
 from rich.table import Table
 
-from debox.core import config as config_utils
+from debox.core import config_utils as config_utils
 from debox.core import podman_utils
 # --- ADD import for the hash_utils module ---
 from debox.core import hash_utils
