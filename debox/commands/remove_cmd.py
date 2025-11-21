@@ -2,17 +2,17 @@
 
 import shutil
 
+from debox.commands import image_cmd
 from debox.core import container_ops, hash_utils
 from debox.core import desktop_integration
 from debox.core import config_utils
-from debox.core.log_utils import log_debug, log_error, log_info, log_warning, run_step
+from debox.core.log_utils import log_debug, log_error, log_info, log_warning, run_step, console
 
 def remove_app(container_name: str, purge_home: bool):
     """
-    Removes runtime artifacts. Keeps config/home unless --purge is used.
-    Updates .installation_status file.
+    Removes application artifacts based on installation status and --purge flag.
     """
-    log_info(f"--- Removing application: {container_name} ---")
+    console.print(f"--- Removing application: {container_name} ---", style="bold")
 
     app_config_dir = config_utils.get_app_config_dir(container_name, create=False)
     
@@ -62,6 +62,14 @@ def remove_app(container_name: str, purge_home: bool):
         container_ops.remove_container_image(container_name)
 
     if purge_home:
+        image_name = container_name
+        tag = "latest" 
+        
+        try:
+            image_cmd.remove_image_from_registry(image_name, tag)
+        except Exception as e:
+            log_warning(f"Failed to remove image from registry (ignore if already removed): {e}")
+            
         log_debug("--- Purging configuration and data ---")
         with run_step(
             spinner_message="Removing debox configuration...",
@@ -87,7 +95,7 @@ def remove_app(container_name: str, purge_home: bool):
         try:
             log_debug("-> Updating installation status to NOT_INSTALLED.")
             hash_utils.set_installation_status(app_config_dir, hash_utils.STATUS_NOT_INSTALLED)
-            hash_utils.remove_last_applied_hashes(app_config_dir)
+            hash_utils.clear_config_hashes_keep_digest(app_config_dir)
             log_info("-> Configuration and isolated home directory kept (use --purge to remove everything).")
         except Exception as e:
             log_error(f"Failed to update installation status: {e}")

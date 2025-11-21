@@ -3,7 +3,7 @@
 import shutil
 from pathlib import Path
 
-from debox.core import config_utils
+from debox.core import config_utils, registry_utils
 from debox.core import hash_utils
 from debox.core import container_ops
 from debox.core import desktop_integration
@@ -107,6 +107,13 @@ def apply_changes(container_name: str):
             ):
                 image_tag = container_ops.build_container_image(current_config, app_config_dir)
 
+            with run_step(
+                spinner_message="Backing up rebuilt image to local registry...",
+                success_message="-> Rebuilt image backed up.",
+                error_message="Error backing up image"
+            ):
+                image_digest = registry_utils.push_image_to_registry(image_tag)
+
         # 3d. Create new container
         if do_recreate:
             with run_step(
@@ -128,6 +135,10 @@ def apply_changes(container_name: str):
         # 4. Finalize state
         log_debug("-> Finalizing new configuration state...")
         hash_utils.save_last_applied_hashes(app_config_dir, current_hashes)
+
+        if image_digest:
+            hash_utils.save_image_digest(app_config_dir, image_digest)
+
         hash_utils.remove_needs_apply_flag(app_config_dir)
 
         log_info("\n✅ Apply complete. Changes have been applied.")

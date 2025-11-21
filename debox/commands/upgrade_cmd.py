@@ -1,6 +1,6 @@
 # debox/commands/upgrade_cmd.py
 
-from debox.core import podman_utils
+from debox.core import config_utils, hash_utils, podman_utils, registry_utils
 from debox.core.log_utils import log_info, log_error, log_debug, log_warning, console, run_step
 
 def upgrade_app(container_name: str):
@@ -48,6 +48,18 @@ def upgrade_app(container_name: str):
         ):
             cmd_commit = ["podman", "commit", container_name, image_tag]
             podman_utils.run_command(cmd_commit)
+
+        # --- 5. Push image to debox registry ---
+        with run_step(
+            spinner_message=f"Backing up upgraded image to local registry...",
+            success_message="-> Upgraded image backed up.",
+            error_message="Error backing up upgraded image"
+        ):
+            image_digest = registry_utils.push_image_to_registry(image_tag)
+
+        if image_digest:
+            app_config_dir = config_utils.get_app_config_dir(container_name)
+            hash_utils.save_image_digest(app_config_dir, image_digest)
 
         log_info(f"\n✅ Upgrade complete. Image '{image_tag}' has been updated.")
 

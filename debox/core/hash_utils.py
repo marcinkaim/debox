@@ -189,3 +189,17 @@ def remove_image_digest(app_config_dir: Path):
     if STATE_KEY_REGISTRY_DIGEST in hashes:
         del hashes[STATE_KEY_REGISTRY_DIGEST]
         save_last_applied_hashes(app_config_dir, hashes)
+
+def clear_config_hashes_keep_digest(app_config_dir: Path):
+    """
+    Removes configuration hashes from the state file but keeps the registry digest.
+    Used when uninstalling an app without purging (so we can still remove the image later).
+    """
+    hashes = get_last_applied_hashes(app_config_dir)
+    digest = hashes.get(STATE_KEY_REGISTRY_DIGEST)
+    
+    new_state = {}
+    if digest:
+        new_state[STATE_KEY_REGISTRY_DIGEST] = digest
+        
+    save_last_applied_hashes(app_config_dir, new_state)

@@ -30,8 +30,7 @@ def _set_network_permission(container_name: str, allow: bool):
         app_config_dir = config_utils.get_app_config_dir(container_name, create=False)
         config_path = app_config_dir / "config.yml"
         if not config_path.is_file():
-            log_error(f"Configuration file not found for '{container_name}'.")
-            sys.exit(1)
+            log_error(f"Configuration file not found for '{container_name}'.", exit_program=True)
             
         config = config_utils.load_config(config_path)
         current_setting = config.get('permissions', {}).get('network', True)
@@ -48,8 +47,12 @@ def _set_network_permission(container_name: str, allow: bool):
     log_debug(f"--- Step 1: Setting 'permissions.network' to '{allow_str}' ---")
     with temp_log_level(LogLevels.WARNING):
         try:
-            config_string = f"permissions.network:{allow_str}"
-            configure_cmd.configure_app(container_name, [config_string])
+            configure_cmd.configure_app(
+                container_name=container_name,
+                key="permissions.network",
+                value=allow_str,
+                action="set"
+            )
         except SystemExit as e:
             if e.code != 0: log_error(f"Configuration step failed.", exit_program=True)
         except Exception as e:
