@@ -7,7 +7,7 @@ container_name: "debox-libreoffice"
 
 # --- Container Image Definition ---
 image:
-  base: "debian:latest"
+  base: "localhost/debox-base:latest"
   repositories:
   packages:
     - "libreoffice"
@@ -15,16 +15,6 @@ image:
     - "libreoffice-l10n-pl"
     - "libreoffice-java-common"
     - "default-jre-headless"
-    - "libpulse0"
-    - "fonts-noto-core"
-    - "fonts-dejavu-core"
-    - "fonts-cantarell"
-    - "fonts-liberation2"
-    - "fontconfig"
-    - "libfontconfig1"
-    - "libcanberra-gtk3-module"
-    - "python3" 
-    - "locales" 
 
 # --- Storage Configuration ---
 storage:

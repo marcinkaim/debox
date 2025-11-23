@@ -7,7 +7,7 @@ container_name: "debox-vscode"
 
 # --- Container Image Definition ---
 image:
-  base: "debian:latest"
+  base: "localhost/debox-base:latest"
   repositories: []
 
   local_debs:
@@ -16,11 +16,6 @@ image:
     - "git"
     - "build-essential"
     - "podman"
-    - "python3" 
-    - "locales" 
-    - "libpulse0" 
-    - "fontconfig"
-    - "libfontconfig1"
 
 # --- Storage Configuration ---
 storage:
