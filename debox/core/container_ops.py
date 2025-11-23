@@ -53,9 +53,10 @@ def _generate_containerfile(config: dict, host_user: str, host_uid: int, host_lo
         lines.append("RUN apt-get update && apt-get install -y wget gpg sudo locales python3 && apt-get clean")
 
         # Locale generation
-        lines.append(f"RUN sed -i -e 's/# $HOST_LOCALE UTF-8/$HOST_LOCALE UTF-8/' /etc/locale.gen")
-        lines.append(f"RUN dpkg-reconfigure --frontend=noninteractive locales")
-        lines.append(f"ENV LANG=$HOST_LOCALE")
+        lines.append(f"RUN echo '{host_locale} UTF-8' >> /etc/locale.gen")
+        lines.append("RUN locale-gen")
+        lines.append(f"ENV LANG={host_locale}")
+        lines.append(f"ENV LC_ALL={host_locale}")
     else:
         pass
 

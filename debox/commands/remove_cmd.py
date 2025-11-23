@@ -66,7 +66,7 @@ def remove_app(container_name: str, purge_home: bool):
         tag = "latest" 
         
         try:
-            image_cmd.remove_image_from_registry(image_name, tag)
+            image_cmd.remove_image_from_registry(image_name, tag, ignore_errors=True)
         except Exception as e:
             log_warning(f"Failed to remove image from registry (ignore if already removed): {e}")
             

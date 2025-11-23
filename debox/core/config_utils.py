@@ -9,6 +9,7 @@ from debox.core.log_utils import log_debug, log_error
 # Define constants for configuration directories.
 # Using os.path.expanduser('~') makes it work for any user.
 DEBOX_APPS_DIR = Path(os.path.expanduser("~/.config/debox/apps"))
+DEBOX_IMAGES_DIR = Path(os.path.expanduser("~/.config/debox/images"))
 DEBOX_HOMES_DIR = Path(os.path.expanduser("~/.local/share/debox/homes"))
 DESKTOP_FILES_DIR = Path(os.path.expanduser("~/.local/share/applications"))
 
@@ -50,6 +51,15 @@ def get_app_config_dir(container_name: str, create: bool = True) -> Path:
     if create:
         app_dir.mkdir(parents=True, exist_ok=True)
     return app_dir
+
+def get_image_config_dir(image_name: str, create: bool = True) -> Path:
+    """
+    Returns the configuration directory for a base image (e.g. ~/.config/debox/images/debox-base).
+    """
+    path = DEBOX_IMAGES_DIR / image_name
+    if create:
+        path.mkdir(parents=True, exist_ok=True)
+    return path
 
 def get_app_home_dir(container_name: str, create: bool = True) -> Path:
     """

@@ -64,7 +64,7 @@ def log_error(message: str, exit_program: bool = False):
         sys.exit(1)
 
 @contextlib.contextmanager
-def run_step(spinner_message: str, success_message: str, error_message: str):
+def run_step(spinner_message: str, success_message: str, error_message: str, fatal: bool = True):
     """
     Context manager for long-running steps.
     - Shows spinner if log level is INFO.
@@ -84,6 +84,6 @@ def run_step(spinner_message: str, success_message: str, error_message: str):
     except SystemExit as e:
         raise e
     except subprocess.CalledProcessError as e:
-        log_error(f"{error_message}.", exit_program=True)
+        log_error(f"{error_message}.", exit_program=fatal)
     except Exception as e:
-        log_error(f"{error_message}: {e}", exit_program=True)
+        log_error(f"{error_message}: {e}", exit_program=fatal)

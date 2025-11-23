@@ -190,48 +190,70 @@ def list_images():
         )
     console.print(table)
 
-def remove_image_from_registry(image_name: str, tag: str):
+def remove_image_from_registry(image_name: str, tag: str, ignore_errors: bool = False):
     """
     Implements the 3-step process to delete an image from the local registry
     using the *saved digest* from the config file.
     """
     log_info(f"--- Removing image {image_name}:{tag} from local registry ---")
 
+    is_fatal = not ignore_errors
+
     digest = None
     app_config_dir = config_utils.get_app_config_dir(image_name, create=False)
+    image_config_dir = config_utils.get_image_config_dir(image_name, create=False)
+    
+    target_dir_for_cleanup = None
     
     with run_step(
         spinner_message=f"Fetching manifest digest for {image_name}...",
         success_message="",
-        error_message=f"Failed to get digest for {image_name}"
+        error_message=f"Failed to get digest for {image_name}",
+        fatal=is_fatal
     ):
-        digest = hash_utils.get_image_digest(app_config_dir)
+        if app_config_dir.is_dir():
+            digest = hash_utils.get_image_digest(app_config_dir)
+            if digest:
+                target_dir_for_cleanup = app_config_dir
+        
+        if not digest and image_config_dir.is_dir():
+            digest = hash_utils.get_image_digest(image_config_dir)
+            if digest:
+                target_dir_for_cleanup = image_config_dir
+
         if not digest:
-            log_warning(f"No saved digest found for '{image_name}'. Trying to fetch from registry API...")
+            log_warning(f"No saved digest found locally. Trying to fetch from registry API...")
             digest = registry_utils.get_image_manifest_digest(image_name, tag)
     
     if not digest:
-        log_error("Could not find image digest locally or in registry. Aborting.", exit_program=True)
-        return
+        if ignore_errors:
+            log_warning("Could not find image digest. Skipping registry cleanup.")
+            return
+        else:
+            log_error("Could not find image digest locally or in registry. Aborting.", exit_program=True)
+            return
 
     console.print(f"-> Found image digest: {digest[:15]}...")
 
     with run_step(
         spinner_message=f"Deleting manifest {digest[:15]}...",
         success_message="-> Image manifest deleted.",
-        error_message="Failed to delete manifest"
+        error_message="Failed to delete manifest",
+        fatal=is_fatal
     ):
         registry_utils.delete_image_manifest(image_name, digest)
 
     with run_step(
         spinner_message="Running registry garbage collector...",
         success_message="-> Registry garbage collection complete.",
-        error_message="Garbage collection failed"
+        error_message="Garbage collection failed",
+        fatal=is_fatal
     ):
         registry_utils.run_registry_garbage_collector()
 
-    hash_utils.remove_image_digest(app_config_dir)
-    log_debug(f"-> Removed digest from state file for {image_name}.")
+    if target_dir_for_cleanup:
+        hash_utils.remove_image_digest(target_dir_for_cleanup)
+        log_debug(f"-> Removed digest from state file in {target_dir_for_cleanup}.")
 
     console.print(f"\n✅ Image '{image_name}:{tag}' has been permanently removed from the registry.", style="bold green")
 
@@ -385,7 +407,16 @@ def build_base_image(config_path: Path):
                 success_message="-> Base image pushed to registry.",
                 error_message="Error pushing base image"
             ):
-                registry_utils.push_image_to_registry(image_tag)
+                image_digest = registry_utils.push_image_to_registry(image_tag)
+
+            if image_digest:
+                try:
+                    # Użyj nowej funkcji z config_utils
+                    image_config_dir = config_utils.get_image_config_dir(image_name)
+                    hash_utils.save_image_digest(image_config_dir, image_digest)
+                    log_debug(f"-> Saved digest to {image_config_dir}")
+                except Exception as e:
+                    log_warning(f"Failed to save image digest: {e}")
 
         except Exception as e:
             log_error(f"Build process failed: {e}", exit_program=True)
