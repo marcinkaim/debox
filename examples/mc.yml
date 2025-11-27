@@ -1,0 +1,50 @@
+# Configuration for Midnight Commander (CLI File Manager)
+version: 1
+
+app_name: "Midnight Commander"
+container_name: "debox-mc"
+
+image:
+  # Używamy wersji minimalnej - oszczędność miejsca i szybsze budowanie
+  base: "localhost/debox-base-minimal:latest"
+  repositories: []
+  
+  packages:
+    - "mc"
+    - "unzip"
+    - "zip"
+    - "bzip2"
+    - "file"
+    - "libcom-err2"
+
+storage:
+  volumes:
+    # Montujemy cały katalog domowy, aby mc był użyteczny
+    # (Uwaga: w kontenerze będzie to widoczne w /home/marcin/host_home lub podobnie,
+    # w zależności od tego jak to zamontujesz. Tutaj mapujemy konkretne zasoby).
+    - "~:/home/marcin/HostHome" 
+    - "~/Pobrane:/home/marcin/Pobrane"
+    - "~/Dokumenty:/home/marcin/Dokumenty"
+
+runtime:
+  default_exec: "mc"
+  prepend_exec_args: []
+
+integration:
+  # To aplikacja konsolowa, nie potrzebujemy pliku .desktop
+  desktop_integration: false
+  
+  # Tworzymy alias, aby uruchamiać 'mc-debox' z terminala
+  aliases:
+    "mc": "mc-debox"
+
+permissions:
+  network: true    # MC ma wbudowanego klienta FTP/SFTP
+  bluetooth: false
+  gpu: false       # Zbędne dla trybu tekstowego
+  sound: false
+  webcam: false
+  microphone: false
+  printers: false
+  system_dbus: false # Zazwyczaj niepotrzebne dla TUI
+  devices: []

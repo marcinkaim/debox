@@ -1,0 +1,40 @@
+version: 1
+app_name: "Chromium Web Browser"
+container_name: "debox-chromium"
+
+image:
+  base: "localhost/debox-base-electron:latest"
+  packages:
+    - "chromium"
+    - "chromium-l10n"
+
+storage:
+  volumes:
+    - "~/Pobrane:/home/marcin/Pobrane"
+
+runtime:
+  default_exec: "chromium"
+  prepend_exec_args:
+    # Wymuszenie natywnego Waylanda (Ozone)
+    # To rozwiązuje problem rozmytych czcionek na skalowaniu HiDPI
+    - "--ozone-platform=wayland"
+    # - "--disable-gpu"
+    
+    # Chromium w kontenerze user-namespace ZAZWYCZAJ działa z sandboxem,
+    # ale jeśli będą błędy "Zygote", można dodać "--no-sandbox".
+    # - "--no-sandbox" 
+
+integration:
+  desktop_integration: true
+  skip_categories:
+    - "TerminalEmulator"
+    - "System"
+
+permissions:
+  network: true
+  gpu: true       # Kluczowe dla Chromium
+  sound: true
+  webcam: true    # Możesz przetestować kamerę
+  microphone: true
+  system_dbus: true
+  devices: []

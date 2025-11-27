@@ -1,0 +1,49 @@
+# Configuration for VLC Media Player (Qt-based)
+version: 1
+
+# --- Application Metadata ---
+app_name: "VLC Media Player"
+container_name: "debox-vlc"
+
+# --- Container Image Definition ---
+image:
+  # Dziedziczymy po naszym obrazie Qt, aby mieć style i wtyczki Waylanda
+  base: "localhost/debox-base-qt:latest"
+  repositories: []
+  
+  packages:
+    - "vlc"
+    - "vlc-l10n"
+    # Opcjonalnie: dodatkowe kodeki, jeśli Debianowe są za chude
+    # - "libavcodec-extra" 
+
+# --- Storage Configuration ---
+storage:
+  volumes:
+    - "~/Pobrane:/home/marcin/Pobrane"
+    - "~/Wideo:/home/marcin/Wideo"
+    - "~/Muzyka:/home/marcin/Muzyka"
+    # Gniazdo X11 jest potrzebne, bo VLC często preferuje XWayland dla wideo
+    - "/tmp/.X11-unix:/tmp/.X11-unix:ro"
+
+# --- Runtime Process Configuration ---
+runtime:
+  default_exec: "vlc"
+  prepend_exec_args: []
+
+# --- Desktop Integration Configuration ---
+integration:
+  desktop_integration: true
+  skip_categories: []
+
+# --- Permissions ---
+permissions:
+  network: true    # Potrzebne do streamingu / pobierania okładek
+  bluetooth: true  # Jeśli używasz słuchawek BT
+  gpu: true        # KLUCZOWE: Dekodowanie wideo
+  sound: true      # KLUCZOWE: Odtwarzanie dźwięku
+  webcam: false
+  microphone: false
+  printers: false
+  system_dbus: true
+  devices: []

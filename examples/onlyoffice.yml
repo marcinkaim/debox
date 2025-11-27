@@ -1,0 +1,58 @@
+# Configuration for the full OnlyOffice
+version: 1
+
+# --- Application Metadata ---
+app_name: "OnlyOffice" 
+container_name: "debox-onlyoffice" 
+
+# --- Container Image Definition ---
+image:
+  base: "localhost/debox-base:latest"
+  repositories: []
+  local_debs:
+    - "~/Pobrane/onlyoffice-desktopeditors_amd64.deb"
+  packages:
+    - "libnss3"
+    - "libxcb-cursor0"
+    - "libxcb-xinerama0"
+    - "libxcb-icccm4"
+    - "libxcb-image0"
+    - "libxcb-keysyms1"
+    - "libxcb-render-util0"
+
+# --- Storage Configuration ---
+storage:
+  volumes:
+    - "~/Dokumenty:/home/marcin/Dokumenty"
+    - "~/Pobrane:/home/marcin/Pobrane"
+    - "~/Szablony:/home/marcin/Szablony"
+    - "/tmp/.X11-unix:/tmp/.X11-unix:ro"
+    - "~/.config/user-dirs.dirs:/home/marcin/.config/user-dirs.dirs:ro"
+
+# --- Runtime Process Configuration ---
+runtime:
+  default_exec: "onlyoffice-desktopeditors"
+  prepend_exec_args:
+    - "--xdg-desktop-portal=default"
+    - "--native-file-dialog"
+    - "--ozone-platform=wayland"
+    # - "--disable-gpu"
+
+# --- Desktop Integration Configuration ---
+integration:
+  desktop_integration: true
+  skip_categories: 
+    - "TerminalEmulator"
+    - "System"
+
+# --- Permissions ---
+permissions:
+  network: true
+  bluetooth: false
+  gpu: true
+  sound: true 
+  webcam: false
+  microphone: false
+  printers: true 
+  system_dbus: true
+  devices: []

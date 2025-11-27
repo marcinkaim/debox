@@ -1,0 +1,34 @@
+version: 1
+image_name: "debox-base-qt"
+
+image:
+  base: "localhost/debox-base:latest"
+  repositories: []
+  
+  packages:
+    # --- Podstawowe biblioteki Qt5 i Qt6 ---
+    # --- Podstawowe biblioteki Qt5 i Qt6 ---
+    - "libqt5gui5"
+    - "libqt5widgets5"
+    - "libqt5dbus5"
+    
+    # --- Obsługa Wayland dla Qt ---
+    - "qtwayland5"
+    - "qt6-wayland" 
+    
+    # --- Integracja wyglądu (Zaktualizowana dla Trixie) ---
+    # 'qt5-style-plugins' usunięto, używamy 'adwaita-qt' (styl GNOME)
+    # oraz 'qgnomeplatform-qt5' (jeśli dostępny, lepsza integracja)
+    - "adwaita-qt"
+    - "qgnomeplatform-qt5" # To jest kluczowy pakiet dla integracji z GNOME w nowszych Debianach
+    
+    # --- Ikony i zasoby ---
+    - "libqt5svg5"
+    - "adwaita-icon-theme"
+
+    - "libglib2.0-bin"         # Dostarcza 'gio' do otwierania linków na hoście via D-Bus
+    - "gvfs-backends"
+    - "oxygen-sounds" # Podstawowe dźwięki systemowe
+
+    - "sound-theme-freedesktop"   
+    - "libkf5notifications-data"

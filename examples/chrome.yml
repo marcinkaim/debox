@@ -1,0 +1,45 @@
+version: 1
+app_name: "Google Chrome"
+container_name: "debox-chrome"
+
+image:
+  base: "localhost/debox-base-electron:latest"
+  repositories: []
+
+  local_debs:
+    - "~/Pobrane/google-chrome-stable_current_amd64.deb"
+  packages: []
+
+storage:
+  volumes:
+    - "~/Pobrane:/home/marcin/Pobrane"
+
+runtime:
+  default_exec: "google-chrome-stable"
+  prepend_exec_args:
+    - "--ozone-platform=wayland"
+    
+    # --- Nowe flagi stabilizujące GPU w VM ---
+    # Wyłącza współdzielenie tekstur GPU (częsta przyczyna "Buffer Handle is null")
+    - "--disable-gpu-compositing" 
+    
+    # Opcjonalnie: Wyłącz rasteryzację GPU, jeśli powyższe nie pomoże
+    - "--disable-gpu-rasterization"
+    
+    # Opcjonalnie: Wymuś konkretny backend Vulkan lub GL (w zależności od VM)
+    - "--use-gl=egl"
+
+integration:
+  desktop_integration: true
+  skip_categories:
+    - "TerminalEmulator"
+    - "System"
+
+permissions:
+  network: true
+  gpu: true
+  sound: true
+  webcam: true
+  microphone: true
+  system_dbus: true
+  devices: []

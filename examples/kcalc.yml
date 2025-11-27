@@ -1,0 +1,39 @@
+version: 1
+app_name: "KCalc"
+container_name: "debox-kcalc"
+
+image:
+  base: "localhost/debox-base-qt:latest"
+  packages:
+    - "kcalc"
+
+storage:
+  volumes: []
+
+runtime:
+  default_exec: "kcalc"
+  prepend_exec_args: []
+
+integration:
+  desktop_integration: true
+  skip_categories: []
+
+permissions:
+  network: false
+  gpu: true       # Qt5 na Waylandzie korzysta z akceleracji
+  sound: true
+  system_dbus: true
+  host_opener: true
+  devices: []
+
+# --- Zmienne środowiskowe wymuszające Wayland ---
+# Możemy je dodać w 'image' jako ENV, ale tutaj też zadziałają (przez -e)
+# Uwaga: W obecnej wersji debox nie mamy sekcji 'environment' w YAML dla 'run',
+# ale podman_flags przekazują zmienne hosta.
+#
+# Najlepszą praktyką dla Qt na GNOME jest ustawienie tego w systemie,
+# ale możemy spróbować wymusić to przez 'prepend_exec_args' jeśli aplikacja to wspiera,
+# lub dodać 'ENV' do 'base-qt.yml'.
+#
+# Tutaj zakładamy, że Twój host ma ustawione QT_QPA_PLATFORM=wayland,
+# co debox przekaże do kontenera. Jeśli nie, aplikacja może użyć XWayland.

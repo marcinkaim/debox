@@ -1,0 +1,47 @@
+# Configuration for GIMP (GNU Image Manipulation Program)
+version: 1
+
+app_name: "GIMP"
+container_name: "debox-gimp"
+
+image:
+  # GIMP to aplikacja GTK, więc standardowy debox-base jest idealny
+  base: "localhost/debox-base:latest"
+  repositories: []
+  
+  packages:
+    - "gimp"
+    - "gimp-data-extras" # Dodatkowe pędzle i wzory
+    - "gimp-help-pl"     # Polska pomoc
+    - "iso-codes"        # Często wymagane do tłumaczeń
+    - "ghostscript"      # Do importu PDF/EPS
+    - "libgegl-0.4-0"    # Silnik graficzny
+
+storage:
+  volumes:
+    - "~/Obrazy:/home/marcin/Obrazy"
+    - "~/Dokumenty:/home/marcin/Dokumenty"
+    - "~/Pobrane:/home/marcin/Pobrane"
+    # Montujemy katalog z profilami kolorów (opcjonalne, ale przydatne dla grafików)
+    - "/usr/share/color:/usr/share/color:ro" 
+
+runtime:
+  default_exec: "gimp"
+  prepend_exec_args: []
+
+integration:
+  desktop_integration: true
+  skip_categories:
+    - "TerminalEmulator"
+    - "System"
+
+permissions:
+  network: true    # Przydatne dla wtyczek, sprawdzania aktualizacji
+  bluetooth: false # Chyba że używasz tabletu graficznego po BT
+  gpu: true        # Ważne dla akceleracji GEGL (OpenCL)
+  sound: false     # GIMP raczej nie wydaje dźwięków
+  webcam: true     # GIMP potrafi pobierać obraz z kamery/skanera
+  microphone: false
+  printers: true   # Drukowanie jest kluczowe
+  system_dbus: true
+  devices: []      # Tutaj można by dodać /dev/bus/usb dla tabletu graficznego

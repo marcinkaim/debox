@@ -1,0 +1,62 @@
+# Configuration for WPS Office
+version: 1
+
+# --- Application Metadata ---
+app_name: "WPS Office"
+container_name: "debox-wpsoffice" 
+
+# --- Container Image Definition ---
+image:
+  base: "localhost/debox-base:latest"
+  repositories: []
+
+  local_debs:
+    - "~/Pobrane/wps-office_11.1.0.11723.XA_amd64.deb"
+  packages:
+    - "libxslt1.1"
+
+    # --- Wykryte przez ldd ---
+    - "libxkbcommon-x11-0" # libxkbcommon-x11.so.0
+    - "libc++1"            # libc++.so.1
+    - "libc++abi1"         # libc++abi.so.1
+
+    # --- Standardowe wymagania Qt5/XCB (WPS ich potrzebuje do GUI) ---
+    - "libxcb-cursor0"      # <-- KLUCZOWE: Częsty brak w Qt5
+    - "libxcb-xinerama0"
+    - "libxcb-icccm4"
+    - "libxcb-image0"
+    - "libxcb-keysyms1"
+    - "libxcb-render-util0"
+
+# --- Storage Configuration ---
+storage:
+  volumes:
+    - "~/Dokumenty:/home/marcin/Dokumenty"
+    - "~/Pobrane:/home/marcin/Pobrane"
+    - "~/Szablony:/home/marcin/Szablony"
+    - "/tmp/.X11-unix:/tmp/.X11-unix:ro"
+
+# --- Runtime Process Configuration ---
+runtime:
+  default_exec: "wps"
+  prepend_exec_args:
+    - "-platform"
+    - "xcb"
+# --- Desktop Integration Configuration ---
+integration:
+  desktop_integration: true
+  skip_categories: 
+    - "TerminalEmulator"
+    - "System"
+
+# --- Permissions ---
+permissions:
+  network: true
+  bluetooth: false
+  gpu: true
+  sound: true 
+  webcam: false
+  microphone: false
+  printers: true 
+  system_dbus: true
+  devices: []
