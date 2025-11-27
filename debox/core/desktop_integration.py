@@ -192,10 +192,13 @@ def add_desktop_integration(config: dict):
                     elif section_name == 'Desktop Entry' and final_icon_list: # Fallback for main entry
                         section['Icon'] = f"{container_name}_{final_icon_list[0]}"
 
-                # Modify main Name entry
-                if 'Desktop Entry' in parser:
-                    main_section = parser['Desktop Entry']
-                    main_section['Name'] = f"{main_section.get('Name', original_filename)} ({container_name})"
+                    # Modify main Name entry
+                    for key, value in parser.items(section_name):
+                        if key == 'Name' or key.startswith('Name['):
+                            suffix = f" ({container_name})"
+                            if suffix not in value:
+                                parser.set(section_name, key, f"{value}{suffix}")
+                                log_debug(f"    Updated {key}: {value} -> {parser.get(section_name, key)}")
 
                 # Construct final path on host using prefixed filename
                 final_desktop_filename = f"{container_name}_{original_filename}"
