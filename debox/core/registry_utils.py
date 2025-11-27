@@ -170,7 +170,7 @@ def get_image_manifest_digest(image_name: str, tag: str) -> Optional[str]:
     api_url = f"http://{registry_address}/v2/{image_name}/manifests/{tag}"
     
     headers = {
-        "Accept": "application/vnd.docker.distribution.manifest.v2+json"
+        "Accept": "application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json"
     }
     
     log_debug(f"Querying HEAD {api_url} for digest...")

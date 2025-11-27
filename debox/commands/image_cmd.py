@@ -282,11 +282,60 @@ def pull_image(image_name_input: str):
 def prune_registry(dry_run: bool):
     """
     Cleans up the local registry storage.
+    Identifies orphaned images (no matching local config) and removes them,
+    then runs Garbage Collection.
     """
     log_info("--- Pruning Local Registry Storage ---")
     
     if dry_run:
         console.print("[yellow]Running in DRY-RUN mode. No data will be deleted.[/yellow]")
+
+    active_images = set()
+    
+    if config_utils.DEBOX_APPS_DIR.is_dir():
+        for app_dir in config_utils.DEBOX_APPS_DIR.iterdir():
+            config_path = app_dir / "config.yml"
+            if config_path.is_file():
+                try:
+                    with open(config_path, 'r') as f:
+                        config = yaml.safe_load(f)
+                        if config and 'container_name' in config:
+                            active_images.add(config['container_name'])
+                except Exception: pass
+    
+    if config_utils.DEBOX_IMAGES_DIR.is_dir():
+        for img_dir in config_utils.DEBOX_IMAGES_DIR.iterdir():
+             # Nazwa katalogu to nazwa obrazu
+             active_images.add(img_dir.name)
+             
+    log_debug(f"Active images (from config): {active_images}")
+
+    try:
+        registry_images = registry_utils.get_registry_catalog()
+    except Exception as e:
+        log_error(f"Failed to list registry images: {e}", exit_program=True)
+        return
+
+    orphans_found = False
+
+    for image_name in registry_images:
+        if image_name not in active_images:
+            orphans_found = True
+            tags = registry_utils.get_image_tags(image_name)
+            
+            if not tags:
+                continue
+
+            console.print(f"-> Found orphaned image: [magenta]{image_name}[/magenta] (Tags: {', '.join(tags)})")
+            
+            if not dry_run:
+                for tag in tags:
+                    remove_image_from_registry(image_name, tag, ignore_errors=True)
+            else:
+                 console.print(f"   [dim](Dry run) Would remove {image_name}:{tags}[/dim]")
+
+    if not orphans_found:
+        log_info("-> No orphaned images found.")
 
     with run_step(
         spinner_message="Running Garbage Collector...",
