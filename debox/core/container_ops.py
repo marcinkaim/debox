@@ -38,6 +38,11 @@ def _generate_containerfile(config: dict, host_user: str, host_uid: int, host_lo
     lines.append("ENV DEBIAN_FRONTEND=noninteractive")
 
     image_cfg = config.get('image', {})
+    integration_cfg = config.get('integration', {})
+    desktop_integration_enabled = integration_cfg.get('desktop_integration', True)
+
+    permissions = config.get('permissions', {})
+    host_opener_enabled = permissions.get('host_opener', False)
 
     if not is_debox_base:
         components = image_cfg.get('debian_components', [])
@@ -90,6 +95,12 @@ def _generate_containerfile(config: dict, host_user: str, host_uid: int, host_lo
     # Handle package installation
     packages_to_install = image_cfg.get('packages', [])
 
+    if desktop_integration_enabled and host_opener_enabled:
+        if "libglib2.0-bin" not in packages_to_install:
+            packages_to_install.append("libglib2.0-bin")
+        if "xdg-utils" not in packages_to_install:
+            packages_to_install.append("xdg-utils")
+
     local_debs_to_install = []
 
     local_debs_config = image_cfg.get('local_debs', [])
@@ -115,6 +126,28 @@ def _generate_containerfile(config: dict, host_user: str, host_uid: int, host_lo
             lines.append(f"RUN echo 'APT::Default-Release \"{target_release}\";' > /etc/apt/apt.conf.d/99debox-target")
 
         lines.append(f"RUN apt-get update && {install_cmd} {all_packages_str} && apt-get clean && rm -rf /tmp/debox_debs /var/lib/apt/lists/*")
+
+    if desktop_integration_enabled and host_opener_enabled:
+        lines.append("\n# --- Debox Host Opener Setup ---")
+        
+        # 1. Skopiuj skrypt i nadaj uprawnienia
+        lines.append("COPY debox-open /usr/local/bin/debox-open")
+        lines.append("RUN chmod +x /usr/local/bin/debox-open")
+        
+        # 2. Skopiuj plik .desktop
+        lines.append("RUN mkdir -p /usr/share/applications")
+        lines.append("COPY debox-open.desktop /usr/share/applications/debox-open.desktop")
+
+        # 3. Skonfiguruj MIME (to nadal musi być komenda shella)
+        mime_script = """
+mkdir -p /etc/xdg
+echo '[Default Applications]' > /etc/xdg/mimeapps.list
+echo 'text/html=debox-open.desktop' >> /etc/xdg/mimeapps.list
+echo 'x-scheme-handler/http=debox-open.desktop' >> /etc/xdg/mimeapps.list
+echo 'x-scheme-handler/https=debox-open.desktop' >> /etc/xdg/mimeapps.list
+"""
+        mime_oneline = " && ".join([line.strip() for line in mime_script.strip().splitlines() if line.strip()])
+        lines.append(f"RUN {mime_oneline}")
 
     if not is_debox_base:
         # Create the user
@@ -239,6 +272,18 @@ def _generate_podman_flags(config: dict) -> list[str]:
         for var in essential_env_vars:
              if os.environ.get(var): flags.extend(["-e", var])
 
+        xauth_path = os.environ.get("XAUTHORITY", os.path.expanduser("~/.Xauthority"))
+        
+        if Path(xauth_path).is_file():
+            # Montujemy go w bezpiecznym miejscu w kontenerze (np. /tmp/.Xauthority)
+            # i ustawiamy zmienną środowiskową, aby aplikacja wiedziała, gdzie go szukać.
+            container_xauth_path = "/tmp/.Xauthority"
+            flags.extend(["-v", f"{xauth_path}:{container_xauth_path}:ro"])
+            flags.extend(["-e", f"XAUTHORITY={container_xauth_path}"])
+            log_debug(f"     - X11 Auth: Mounted {xauth_path} -> {container_xauth_path}")
+        else:
+            log_debug(f"     - X11 Auth: File not found at {xauth_path}. X11 apps might fail.")
+        
         # Apply GPU based on permission AND integration flag
         gpu_perm = permissions.get('gpu', True) # Default true if integration enabled
         if gpu_perm:
@@ -266,13 +311,25 @@ def _generate_podman_flags(config: dict) -> list[str]:
     if volumes:
         for volume in volumes:
             try:
-                host_path, container_path = volume.split(':')
+                parts = volume.split(':')
+                
+                if len(parts) == 2:
+                    host_path, container_path = parts
+                    options = "Z" 
+                elif len(parts) == 3:
+                    host_path, container_path, options = parts
+                else:
+                    raise ValueError("Expected 2 or 3 parts separated by ':'")
+
                 expanded_host_path = os.path.expanduser(host_path)
-                # Add check if host path exists? Maybe optional.
-                flags.extend(["-v", f"{expanded_host_path}:{container_path}:Z"])
-                log_debug(f"     - Additional: {expanded_host_path} -> {container_path}")
+                
+                # Złóż flagę z powrotem
+                volume_flag = f"{expanded_host_path}:{container_path}:{options}"
+                flags.extend(["-v", volume_flag])
+                
+                log_debug(f"     - Additional: {volume_flag}")
             except ValueError:
-                print(f"     - Warning: Invalid volume format: '{volume}'. Skipping.")
+                log_warning(f"     - Invalid volume format: '{volume}'. Skipping.")
     else:
         log_debug("     - Additional Volumes: None")
 

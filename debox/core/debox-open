@@ -1,0 +1,34 @@
+#!/bin/sh
+# Debox Host Opener
+# Sends open request to the host via XDG Desktop Portal
+
+TARGET_URL="$1"
+
+if [ -z "$TARGET_URL" ]; then
+    echo "[Debox-Open] Error: No URL provided." >&2
+    exit 1
+fi
+
+# --- SECURITY CHECK ---
+# Pozwól tylko na protokoły http i https.
+# Odrzuć file://, mailto://, itp.
+case "$TARGET_URL" in
+    http://*|https://*)
+        ;;
+    *)
+        echo "[Debox-Open] Security blocked: Protocol not allowed. Only http/https supported." >&2
+        echo "[Debox-Open] Blocked URL: $TARGET_URL" >&2
+        exit 1
+        ;;
+esac
+# ----------------------
+
+echo "[Debox-Open] Requesting host to open: $TARGET_URL" >&2
+
+/usr/bin/gdbus call --session \
+    --dest org.freedesktop.portal.Desktop \
+    --object-path /org/freedesktop/portal/desktop \
+    --method org.freedesktop.portal.OpenURI.OpenURI \
+    "" "$TARGET_URL" {}
+
+exit $?

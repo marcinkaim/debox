@@ -93,11 +93,22 @@ def install_app(container_name: Optional[str], config_path: Optional[Path]):
 
     try:
         current_dir = Path(__file__).parent
-        keep_alive_script_src = current_dir.parent / "core" / "keep_alive.py"
-        if keep_alive_script_src.is_file():
-            keep_alive_script_dest = app_config_dir / "keep_alive.py"
-            shutil.copy2(keep_alive_script_src, keep_alive_script_dest)
-            log_debug(f"-> Copied keep_alive.py to build context.")
+        core_dir = current_dir.parent / "core"
+        
+        helper_files = ["keep_alive.py", "debox-open", "debox-open.desktop"]
+        
+        for filename in helper_files:
+            src = core_dir / filename
+            dest = app_config_dir / filename
+            
+            if src.is_file():
+                shutil.copy2(src, dest)
+                log_debug(f"-> Copied {filename} to build context.")
+            else:
+                if filename == "keep_alive.py":
+                    log_error(f"{filename} not found! Container functionality will be broken.")
+                else:
+                    log_warning(f"{filename} not found. Web opening might not work.")
         
         local_debs = config.get('image', {}).get('local_debs', [])
         if local_debs:

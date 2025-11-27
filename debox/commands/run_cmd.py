@@ -12,6 +12,7 @@ from debox.core.log_utils import log_debug, log_error
 def run_app(container_name: str, app_command_and_args: list[str]):
     """
     Ensures the container is running, then executes a command.
+    Intelligently enables TTY (-it) if run from a terminal.
     - If 'app_command_and_args' is provided (via '--'), it's executed.
     - If 'app_command_and_args' is empty, 'runtime.default_exec' from config is used.
     It then stops the container on application exit.
@@ -68,16 +69,26 @@ def run_app(container_name: str, app_command_and_args: list[str]):
         # --- 4. Assemble and Run Final Command ---
         executable = command_to_run_parts[0]
         executable_args = command_to_run_parts[1:]
-        
+
+        podman_exec_flags = ["--user", host_user]
+
+        if sys.stdin.isatty() and sys.stdout.isatty():
+            log_debug("-> Detected TTY: Enabling interactive mode (-it) and passing TERM.")
+            podman_exec_flags.append("-it")
+            term_env = os.environ.get("TERM", "xterm")
+            podman_exec_flags.extend(["-e", f"TERM={term_env}"])
+        else:
+            log_debug("-> No TTY detected: Running in non-interactive mode.")
+
         exec_command = [
-            "podman", "exec",
-            "--user", host_user,
+            "podman", "exec"
+        ] + podman_exec_flags + [
             container_name,
-            executable          # e.g., 'code' or '/usr/lib/firefox-esr/firefox-esr'
+            executable
         ]
-        exec_command.extend(prepend_args)     # e.g., ['--ozone-platform=wayland']
-        exec_command.extend(executable_args)  # e.g., [] or ['--writer']
-        
+        exec_command.extend(prepend_args)
+        exec_command.extend(executable_args)
+               
         log_debug(f"-> Executing command: {' '.join(exec_command)}") 
         
         app_process = subprocess.run(exec_command, check=False) 
@@ -87,6 +98,8 @@ def run_app(container_name: str, app_command_and_args: list[str]):
         log_debug(f"-> Stopping container '{container_name}'...")
         podman_utils.run_command(["podman", "stop", "--time=2", container_name]) 
         log_debug(f"-> Container '{container_name}' stopped.")
+
+        sys.exit(app_process.returncode)
 
     except Exception as e:
         log_error(f"Running the application failed: {e}")

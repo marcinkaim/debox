@@ -45,14 +45,15 @@ VALID_CONFIG_KEYS = [
     "integration.aliases",
     "permissions.network", "permissions.bluetooth", "permissions.gpu",
     "permissions.sound", "permissions.webcam", "permissions.microphone",
-    "permissions.printers", "permissions.system_dbus", "permissions.devices",
+    "permissions.printers", "permissions.system_dbus", "permissions.host_opener",
+    "permissions.devices",
 ]
 
 BOOLEAN_KEYS = [
     "integration.desktop_integration",
     "permissions.network", "permissions.bluetooth", "permissions.gpu",
     "permissions.sound", "permissions.webcam", "permissions.microphone",
-    "permissions.printers", "permissions.system_dbus",
+    "permissions.printers", "permissions.system_dbus", "permissions.host_opener",
 ]
 
 LIST_KEYS = [

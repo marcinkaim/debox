@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=Debox Host Opener
+Exec=/usr/local/bin/debox-open %u
+MimeType=text/html;x-scheme-handler/http;x-scheme-handler/https;
+NoDisplay=true
