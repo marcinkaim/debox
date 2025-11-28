@@ -40,6 +40,7 @@ dependencies = [
     "PyYAML",     # For parsing the .yml configuration files.
     "rich",
     "requests",
+    "Pillow"
 ]
 
 # This section is crucial. It creates the command-line entry points.

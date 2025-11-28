@@ -9,9 +9,11 @@ import configparser
 import glob
 from pathlib import Path
 import os
+import shutil
 import subprocess
 import time
 import shlex
+from PIL import Image
 
 from debox.core.log_utils import log_debug, log_error, log_warning
 
@@ -209,7 +211,7 @@ def add_desktop_integration(config: dict):
                         parser.write(f, space_around_delimiters=False)
                     log_debug(f"--> Saved: {final_desktop_path}")
                 except Exception as write_e:
-                    log_debug(f"--> Error writing {final_desktop_path}: {write_e}")
+                    log_error(f"--> Error writing {final_desktop_path}: {write_e}")
 
             # --- 5. Update caches ---
             if icons_were_copied:
@@ -252,6 +254,7 @@ def add_desktop_integration(config: dict):
 
     except Exception as e:
         log_error(f"Desktop file export process failed: {e}")
+        raise e
     finally:
         # Stop the temporary container
         log_debug("-> Stopping temporary container used for integration...")
@@ -289,7 +292,7 @@ debox run {container_name} -- {base_command} "$@"
     except Exception as e:
         log_error(f"--> Failed to create alias script {alias_path}: {e}")
         raise
-
+    
 def _export_icons(container_name: str, icon_names: list[str]) -> bool:
     """
     Finds icon files inside the container for a list of base names,
@@ -305,6 +308,15 @@ def _export_icons(container_name: str, icon_names: list[str]) -> bool:
     """
     icons_copied_count = 0
     log_debug(f"-> Starting icon export for names: {icon_names}")
+
+    user_icon_dir = Path(os.path.expanduser("~/.local/share/icons"))
+    # Domyślny bezpieczny rozmiar dla ikon z pixmaps
+    TARGET_SIZE = 256 
+    fallback_base_dir = user_icon_dir / "hicolor"
+    
+    temp_icon_dir = Path("/tmp/debox_icons_temp")
+    if temp_icon_dir.exists(): shutil.rmtree(temp_icon_dir)
+    temp_icon_dir.mkdir(parents=True, exist_ok=True)
 
     for icon_name in icon_names:
         if not icon_name: # Skip empty names
@@ -327,38 +339,85 @@ def _export_icons(container_name: str, icon_names: list[str]) -> bool:
             
             for icon_path_in_container in found_icons:
                 try:
-                    icon_path_cont = Path(icon_path_in_container)
-                    icon_extension = icon_path_cont.suffix.lower()
+                    icon_path_in_container_obj = Path(icon_path_in_container)
+                    icon_extension = icon_path_in_container_obj.suffix.lower()
+                    final_icon_name = f"{container_name}_{icon_name}{icon_extension}"
                     
-                    # --- Determine destination directory ---
-                    if icon_path_cont.is_relative_to("/usr/share/icons"):
-                        relative_path = icon_path_cont.relative_to("/usr/share/icons")
-                        host_dest_dir = Path(os.path.expanduser("~/.local/share/icons")) / relative_path.parent
-                    elif icon_path_cont.is_relative_to("/usr/share/pixmaps"):
-                        # For pixmaps, place directly in user's pixmaps, no subdirs needed from relative_path
-                        host_dest_dir = Path(os.path.expanduser("~/.local/share/pixmaps"))
+                    path_parts = icon_path_in_container_obj.parts
+                    final_dest_path = None
+
+                    if "icons" in path_parts:
+                        try:
+                            icons_index = path_parts.index("icons")
+                            relative_path = Path(*path_parts[icons_index+1:]).parent
+                            host_subdir = user_icon_dir / relative_path
+                            host_subdir.mkdir(parents=True, exist_ok=True)
+                            final_dest_path = host_subdir / final_icon_name
+                            
+                            podman_utils.run_command(
+                                ["podman", "cp", f"{container_name}:{icon_path_in_container}", str(final_dest_path)],
+                                check=True
+                            )
+                            log_debug(f"    Copied (Standard): {final_dest_path}")
+                            icons_copied_count += 1
+                            continue 
+                        except ValueError:
+                            pass
+
+                    temp_path = temp_icon_dir / final_icon_name
+                    podman_utils.run_command(
+                        ["podman", "cp", f"{container_name}:{icon_path_in_container}", str(temp_path)],
+                        check=True
+                    )
+                    
+                    target_dir = None
+                    
+                    if icon_extension == ".svg":
+                        target_dir = fallback_base_dir / "scalable" / "apps"
+                        target_dir.mkdir(parents=True, exist_ok=True)
+                        final_dest_path = target_dir / final_icon_name
+                        shutil.move(str(temp_path), str(final_dest_path))
+                        
                     else:
-                        log_warning(f"--> Warning: Skipping icon with unknown base path: {icon_path_cont}")
-                        continue
+                        try:
+                            with Image.open(temp_path) as img:
+                                w, h = img.size
+                                
+                                if w == h and w <= 512:
+                                    size_folder = f"{w}x{h}"
+                                else:
+                                    log_debug(f"    Resizing icon from {w}x{h} to {TARGET_SIZE}x{TARGET_SIZE}")
+                                    img = img.resize((TARGET_SIZE, TARGET_SIZE), Image.Resampling.LANCZOS)
+                                    img.save(temp_path)
+                                    size_folder = f"{TARGET_SIZE}x{TARGET_SIZE}"
+
+                                target_dir = fallback_base_dir / size_folder / "apps"
+                                target_dir.mkdir(parents=True, exist_ok=True)
+                                final_dest_path = target_dir / final_icon_name
+                                
+                                shutil.copy2(str(temp_path), str(final_dest_path))
+
+                        except Exception as img_e:
+                            log_warning(f"Failed to process image {temp_path}: {img_e}")
+                            legacy_dir = Path(os.path.expanduser("~/.local/share/pixmaps"))
+                            legacy_dir.mkdir(parents=True, exist_ok=True)
+                            final_dest_path = legacy_dir / final_icon_name
+                            shutil.move(str(temp_path), str(final_dest_path))
                     
-                    host_dest_dir.mkdir(parents=True, exist_ok=True)
-                    
-                    # --- Create the new prefixed filename ---
-                    # e.g., debox-firefox_firefox-esr.png
-                    new_icon_filename = f"{container_name}_{icon_name}{icon_extension}"
-                    icon_path_on_host = host_dest_dir / new_icon_filename
-                    
-                    # --- Copy the icon ---
-                    cp_cmd = ["podman", "cp", f"{container_name}:{icon_path_in_container}", str(icon_path_on_host)]
-                    podman_utils.run_command(cp_cmd)
-                    log_debug(f"    Copied: {icon_path_in_container} -> {icon_path_on_host}")
-                    icons_copied_count += 1
+                    if final_dest_path and final_dest_path.exists():
+                        log_debug(f"    Processed & Installed: {final_dest_path}")
+                        icons_copied_count += 1
+                   
                 except Exception as copy_e:
                     log_error(f"--> Copying icon {icon_path_in_container} failed: {copy_e}")
 
         except Exception as find_e:
             log_error(f"--> Finding icons for '{icon_name}' failed: {find_e}")
 
+    try:
+        shutil.rmtree(temp_icon_dir)
+    except: pass
+    
     if icons_copied_count > 0:
         log_debug(f"-> Successfully copied {icons_copied_count} total icon file(s).")
         return True

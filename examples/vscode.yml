@@ -35,8 +35,8 @@ integration:
   skip_categories:
     - "TerminalEmulator"
     - "System"
-  aliases:
-    "code": "code-devbox" 
+  # aliases:
+  #   "code": "code-devbox" 
 
 # --- Permissions ---
 permissions:
