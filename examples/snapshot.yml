@@ -1,0 +1,59 @@
+# Configuration for Snapshot (GNOME Snapshot)
+version: 1
+
+app_name: "Snapshot"
+container_name: "debox-snapshot"
+
+image:
+  base: "localhost/debox-base:latest"
+  repositories: []
+  
+  packages:
+  - "snapshot"
+  - "glycin-loaders"
+  
+  - "gstreamer1.0-plugins-base"
+  - "gstreamer1.0-plugins-good"
+  - "gstreamer1.0-plugins-bad"
+  - "gstreamer1.0-plugins-ugly"
+  - "gstreamer1.0-libav"
+  
+  - "gstreamer1.0-pipewire"
+  - "gstreamer1.0-vaapi"
+  - "libvpx9"
+  - "libx264-164"
+storage:
+  volumes:
+    # Cheese zapisuje zdjęcia/wideo w ~/Obrazy i ~/Wideo
+    - "~/Obrazy:/home/marcin/Obrazy"
+    - "~/Wideo:/home/marcin/Wideo"
+    - "~/.config/user-dirs.dirs:/home/marcin/.config/user-dirs.dirs:ro"
+
+runtime:
+  default_exec: "snapshot"
+  environment: []
+  prepend_exec_args: []
+
+integration:
+  desktop_integration: true
+  skip_names:
+    - "org.gnome.Nautilus.desktop"
+    - "org.gnome.Settings.desktop"
+    - "yelp.desktop"
+    - "org.gnome.ParentalControls.desktop"
+    - "ibus-setup.desktop"
+  skip_categories:
+    - "TerminalEmulator"
+    - "System"
+
+
+permissions:
+  network: false  # Niepotrzebne
+  bluetooth: false
+  gpu: true
+  sound: true
+  webcam: true
+  microphone: true
+  printers: false
+  system_dbus: true
+  devices: []

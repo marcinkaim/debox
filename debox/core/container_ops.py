@@ -148,21 +148,17 @@ echo 'x-scheme-handler/https=debox-open.desktop' >> /etc/xdg/mimeapps.list
 """
         mime_oneline = " && ".join([line.strip() for line in mime_script.strip().splitlines() if line.strip()])
         lines.append(f"RUN {mime_oneline}")
-
+  
     if not is_debox_base:
-        # Create the user
-        lines.append(f"RUN useradd -m -s /bin/bash -u $HOST_UID $HOST_USER")
+        lines.append(f"RUN useradd -m -s /bin/bash -u $HOST_UID -G video,audio,plugdev $HOST_USER")
         lines.append(f"RUN usermod -aG sudo $HOST_USER")
         lines.append(f'RUN echo "$HOST_USER ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers')
-
-        # Copy keep_alive script if exists in context
-        lines.append("COPY keep_alive.py /usr/local/bin/keep_alive.py")
-        lines.append("RUN chmod +x /usr/local/bin/keep_alive.py")
-        lines.append('CMD ["/usr/local/bin/keep_alive.py"]')
     else:
-        lines.append("COPY keep_alive.py /usr/local/bin/keep_alive.py")
-        lines.append("RUN chmod +x /usr/local/bin/keep_alive.py")
-        lines.append('CMD ["/usr/local/bin/keep_alive.py"]')
+        lines.append(f"RUN usermod -aG video,audio,plugdev $HOST_USER")
+
+    lines.append("COPY keep_alive.py /usr/local/bin/keep_alive.py")
+    lines.append("RUN chmod +x /usr/local/bin/keep_alive.py")
+    lines.append('CMD ["/usr/local/bin/keep_alive.py"]')
 
     return "\n".join(lines)
 
@@ -187,6 +183,13 @@ def _generate_podman_flags(config: dict) -> list[str]:
     
     # --- User Namespaces ---
     flags.append("--userns=keep-id") 
+
+    env_vars = runtime_cfg.get('environment', {})
+    if env_vars:
+        log_debug("   Applying environment variables:")
+        for key, value in env_vars.items():
+            flags.extend(["-e", f"{key}={value}"])
+            log_debug(f"     - {key}={value}")
 
     # --- Permissions Section ---
     log_debug("   Applying permissions:")

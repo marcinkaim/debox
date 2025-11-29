@@ -37,8 +37,8 @@ permissions:
   bluetooth: false
   gpu: true
   sound: true
-  webcam: false
-  microphone: false
+  webcam: true
+  microphone: true
   printers: false
   system_dbus: true
   devices: []

@@ -41,6 +41,7 @@ VALID_CONFIG_KEYS = [
     "image.repositories", "image.packages",
     "storage.volumes",
     "runtime.default_exec", "runtime.prepend_exec_args",
+    "runtime.environment",
     "integration.desktop_integration", "integration.skip_categories",
     "integration.aliases",
     "permissions.network", "permissions.bluetooth", "permissions.gpu",
@@ -64,6 +65,7 @@ LIST_KEYS = [
 
 MAP_KEYS = [
     "integration.aliases",
+    "runtime.environment",
 ]
     
 def complete_config_keys(incomplete: str) -> List[str]:

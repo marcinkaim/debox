@@ -32,6 +32,7 @@ def add_desktop_integration(config: dict):
     integration_cfg = config.get('integration', {}) 
     alias_map = integration_cfg.get('aliases', {})
     skip_categories_set = set(integration_cfg.get('skip_categories', []))
+    skip_names_set = set(integration_cfg.get('skip_names', []))
     desktop_integration_enabled = integration_cfg.get('desktop_integration', True) # Check flag
     
     desktop_files_processed = 0
@@ -87,6 +88,17 @@ def add_desktop_integration(config: dict):
             for desktop_path_in_container in found_desktop_paths:
                 try:
                     log_debug(f"--> Processing: {desktop_path_in_container}")
+
+                    filename = Path(desktop_path_in_container).name
+        
+                    if filename in skip_names_set:
+                        log_debug(f"--> Skipping explicitly blocked file: {filename}")
+                        continue
+                    
+                    if Path(filename).stem in skip_names_set:
+                        log_debug(f"--> Skipping explicitly blocked app name: {Path(filename).stem}")
+                        continue
+
                     cat_cmd = ["podman", "exec", container_name, "cat", desktop_path_in_container]
                     original_content = podman_utils.run_command(cat_cmd, capture_output=True)
                     
