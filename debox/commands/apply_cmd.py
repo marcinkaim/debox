@@ -15,6 +15,8 @@ def apply_changes(container_name: str):
     rebuild, recreate, or reintegration actions as needed.
     """
     log_debug(f"--- Applying configuration changes for: {container_name} ---")
+
+    image_digest = None
     
     try:
         # 1. Load configurations
@@ -134,11 +136,17 @@ def apply_changes(container_name: str):
 
         # 4. Finalize state
         log_debug("-> Finalizing new configuration state...")
-        hash_utils.save_last_applied_hashes(app_config_dir, current_hashes)
 
         if image_digest:
-            hash_utils.save_image_digest(app_config_dir, image_digest)
+            pass
+        else:
+            old_state = hash_utils.get_last_applied_hashes(app_config_dir)
+            image_digest = old_state.get(hash_utils.STATE_KEY_REGISTRY_DIGEST)
 
+        current_hashes[hash_utils.STATE_KEY_REGISTRY_DIGEST] = image_digest
+
+        hash_utils.save_last_applied_hashes(app_config_dir, current_hashes)
+        hash_utils.set_installation_status(app_config_dir, hash_utils.STATUS_INSTALLED)
         hash_utils.remove_needs_apply_flag(app_config_dir)
 
         log_info("\n✅ Apply complete. Changes have been applied.")
