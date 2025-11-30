@@ -1,0 +1,9 @@
+# tests/test-image.yml
+version: 1
+image_name: "debox-test-image"
+
+image:
+  # Używamy slim dla szybkości (~30MB pobierania)
+  base: "debian:stable-slim"
+  repositories: []
+  packages: [] # Pusta lista = brak instalacji = szybki build
