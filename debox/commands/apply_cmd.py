@@ -42,16 +42,12 @@ def apply_changes(container_name: str):
         storage_changed = (current_hashes['storage'] != saved_hashes.get('storage'))
         runtime_changed = (current_hashes['runtime'] != saved_hashes.get('runtime'))
         permissions_changed = (current_hashes['permissions'] != saved_hashes.get('permissions'))
-        integration_changed = (current_hashes['integration'] != saved_hashes.get('integration'))
+        integration_any_changed = (current_hashes['integration'] != saved_hashes.get('integration'))
+        integration_critical_changed = (current_hashes['integration_critical'] != saved_hashes.get('integration_critical'))
 
-        # Determine required actions based on MVP logic
-        # (Any change in runtime/storage/perms/integration requires recreate for simplicity)
         do_rebuild = image_changed
-        do_recreate = do_rebuild or storage_changed or runtime_changed or permissions_changed or integration_changed
-        
-        # We must re-integrate if we recreate, OR if only integration settings changed
-        # Note: do_recreate already includes integration_changed, so this is simplified
-        do_reintegrate = do_recreate 
+        do_recreate = do_rebuild or storage_changed or runtime_changed or permissions_changed or integration_critical_changed
+        do_reintegrate = do_recreate or integration_any_changed
 
         if not do_rebuild and not do_recreate and not do_reintegrate: # This implicitly covers 'no changes'
             log_debug("-> Configuration is already up to date.")

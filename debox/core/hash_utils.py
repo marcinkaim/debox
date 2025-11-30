@@ -42,12 +42,26 @@ def _calculate_section_hash(section_data: Any) -> str:
 
 def calculate_hashes(config: dict) -> Dict[str, str]:
     """
-    Calculates the SHA256 hash for each managed section in the config.
+    Calculates hashes for key configuration sections to detect changes.
+    Splits integration into 'full' and 'critical' to optimize apply logic.
     """
     hashes = {}
-    for section in SECTIONS_TO_HASH:
-        section_data = config.get(section)
-        hashes[section] = _calculate_section_hash(section_data)
+    
+    # Standardowe sekcje
+    for section in ['image', 'storage', 'runtime', 'permissions']:
+        hashes[section] = _calculate_section_hash(config.get(section, {}))
+    
+    # Specjalna obsługa sekcji 'integration'
+    int_conf = config.get('integration', {})
+    
+    # 1. Pełny hash (do wykrywania jakichkolwiek zmian, np. aliasów)
+    hashes['integration'] = _calculate_section_hash(int_conf)
+    
+    # 2. Hash krytyczny (tylko opcje wpływające na flagi 'podman create')
+    # Obecnie tylko 'desktop_integration' (bool) wpływa na montowanie gniazd/X11
+    critical_data = {'desktop_integration': int_conf.get('desktop_integration', True)}
+    hashes['integration_critical'] = _calculate_section_hash(critical_data)
+
     return hashes
 
 def get_last_applied_hashes(app_config_dir: Path) -> Dict[str, str]:
