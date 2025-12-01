@@ -1,0 +1,50 @@
+# examples/vscode-debox.yml
+version: 1
+app_name: "VS Code (Debox Dev)"
+container_name: "debox-vscode-python"
+
+image:
+  # Dziedziczymy po obrazie z VS Code
+  base: "localhost:5000/debox-base-vscode:latest"
+  packages:
+    - "python3-venv"
+    - "python3-pip"
+    - "python3-typer"  # Instalujemy systemowo, żeby mieć podgląd
+    - "python3-rich"
+    # Narzędzia do pakowania, które będą nam potrzebne
+    - "dpkg-dev"
+    - "debhelper"
+    - "devscripts"
+
+storage:
+  volumes:
+    # Montujemy TYLKO repozytorium Debox
+    - "~/Repozytoria/debox:/home/marcin/Repozytoria/debox"
+    - "/run/user/1000/podman/podman.sock:/run/user/1000/podman/podman.sock"
+
+runtime:
+  default_exec: "code"
+  environment:
+    CONTAINER_HOST: "unix:///run/user/1000/podman/podman.sock"
+  prepend_exec_args:
+    - "--ozone-platform=wayland"
+    - "--wait"
+    - "/home/marcin/Repozytoria/debox"
+
+integration:
+  desktop_integration: true
+  aliases:
+    "code-debox": "code-debox"
+  skip_categories:
+    - "TerminalEmulator"
+    - "System"
+
+permissions:
+  network: true
+  gpu: true
+  sound: true
+  webcam: false
+  microphone: false
+  printers: false
+  system_dbus: true
+  devices: []

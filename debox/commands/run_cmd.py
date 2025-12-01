@@ -57,7 +57,7 @@ def run_app(container_name: str, app_command_and_args: list[str]):
             default_exec_string = runtime_cfg.get('default_exec')
             
             if not default_exec_string:
-                log_error(f"❌ Error: 'runtime.default_exec' is not defined in config for '{container_name}'.", exit_program=True)
+                log_error(f"'runtime.default_exec' is not defined in config for '{container_name}'.", exit_program=True)
             
             log_debug(f"-> Using default command from config: '{default_exec_string}'")
             command_to_run_parts = shlex.split(default_exec_string)
@@ -72,13 +72,15 @@ def run_app(container_name: str, app_command_and_args: list[str]):
 
         podman_exec_flags = ["--user", host_user]
 
-        if sys.stdin.isatty() and sys.stdout.isatty():
-            log_debug("-> Detected TTY: Enabling interactive mode (-it) and passing TERM.")
+        is_interactive = runtime_cfg.get('interactive', False)
+        
+        if is_interactive and sys.stdin.isatty() and sys.stdout.isatty():
+            log_debug("-> Interactive mode enabled (-it).")
             podman_exec_flags.append("-it")
             term_env = os.environ.get("TERM", "xterm")
             podman_exec_flags.extend(["-e", f"TERM={term_env}"])
         else:
-            log_debug("-> No TTY detected: Running in non-interactive mode.")
+            log_debug("-> Non-interactive mode.")
 
         exec_command = [
             "podman", "exec"

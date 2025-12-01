@@ -28,6 +28,7 @@ storage:
 
 runtime:
   default_exec: "mc"
+  interactive: true
   prepend_exec_args: []
 
 integration:

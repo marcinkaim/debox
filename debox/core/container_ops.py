@@ -185,11 +185,13 @@ def _generate_podman_flags(config: dict) -> list[str]:
     flags.append("--userns=keep-id") 
 
     env_vars = runtime_cfg.get('environment', {})
-    if env_vars:
+    if env_vars and isinstance(env_vars, dict):
         log_debug("   Applying environment variables:")
         for key, value in env_vars.items():
             flags.extend(["-e", f"{key}={value}"])
             log_debug(f"     - {key}={value}")
+    elif env_vars:
+        log_warning(f"'runtime.environment' is not a dictionary (found {type(env_vars)}). Ignoring.")
 
     # --- Permissions Section ---
     log_debug("   Applying permissions:")

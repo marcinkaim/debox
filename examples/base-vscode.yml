@@ -1,0 +1,29 @@
+# examples/base-vscode.yml
+version: 1
+image_name: "debox-base-vscode"
+
+image:
+  # Dziedziczymy po naszym głównym Debianie
+  base: "localhost/debox-base:latest"
+  
+  # Wskazujemy lokalną paczkę DEB z VS Code (zaktualizuj ścieżkę jeśli trzeba)
+  local_debs:
+    - "~/Pobrane/code_1.105.1-1760482543_amd64.deb"
+
+  packages:
+    - "git"
+    - "curl"
+    - "wget"
+    - "build-essential" # GCC, Make - przydatne prawie zawsze
+    # Zależności graficzne VS Code
+    - "libxkbfile1"
+    - "libnss3"
+    - "libnspr4"
+    - "libatk1.0-0"
+    - "libatk-bridge2.0-0"
+    - "libcups2"
+    - "libdrm2"
+    - "libgbm1"
+    - "libgtk-3-0"
+    - "libasound2"
+    - "podman"

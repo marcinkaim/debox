@@ -3,7 +3,7 @@
 import shutil
 
 from debox.commands import image_cmd
-from debox.core import container_ops, hash_utils
+from debox.core import container_ops, hash_utils, podman_utils
 from debox.core import desktop_integration
 from debox.core import config_utils
 from debox.core.log_utils import log_debug, log_error, log_info, log_warning, run_step, console
@@ -88,7 +88,9 @@ def remove_app(container_name: str, purge_home: bool):
         ):
             app_home_dir = config_utils.get_app_home_dir(container_name, create=False)
             if app_home_dir.is_dir():
-                shutil.rmtree(app_home_dir)
+                # shutil.rmtree(app_home_dir)
+                cmd = ["podman", "unshare", "rm", "-rf", str(app_home_dir)]
+                podman_utils.run_command(cmd, check=True)
             else:
                 log_debug(f"-> Isolated home directory not found, skipping: {app_home_dir}")
     else:

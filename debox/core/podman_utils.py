@@ -46,7 +46,7 @@ def build_image(containerfile_content: str, tag: str, context_dir: Path,
     - In VERBOSE (DEBUG) mode, streams all output to console.
     - In SILENT (INFO) mode, logs output to a file, and prints the log ONLY if an error occurs.
     """
-    command = ["podman", "build", "-f", "-", "-t", tag]
+    command = ["podman", "build", "--pull", "-f", "-", "-t", tag]
     
     if build_args:
         for key, value in build_args.items():

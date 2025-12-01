@@ -1,0 +1,46 @@
+# examples/vscode-lisp.yml
+version: 1
+app_name: "VS Code (Lisp Machine)"
+container_name: "debox-vscode-lisp"
+
+image:
+  base: "localhost:5000/debox-base-vscode:latest"
+  packages:
+    # Narzędzia C/C++
+    - "clang"
+    - "lldb"
+    - "gdb"
+    - "cmake"
+    - "valgrind"
+    # Lisp
+    - "sbcl"
+    - "clisp"
+
+storage:
+  volumes:
+    # Montujemy katalog projektu Lisp (stwórz go testowo na hoście)
+    - "~/Repozytoria/lisp-machine:/home/marcin/Repozytoria/lisp-machine"
+    - "/run/user/1000/podman/podman.sock:/run/user/1000/podman/podman.sock"
+
+runtime:
+  default_exec: "code"
+  environment: "CONTAINER_HOST=unix:///run/user/1000/podman/podman.sock"
+  prepend_exec_args:
+    - "--ozone-platform=wayland"
+    - "--wait"
+    - "/home/marcin/Repozytoria/lisp-machine"
+
+integration:
+  desktop_integration: true
+  aliases:
+    "code-lisp": "code-lisp"
+  skip_categories:
+    - "TerminalEmulator"
+    - "System"
+
+permissions:
+  network: true
+  gpu: true
+  sound: true
+  system_dbus: true
+  devices: []

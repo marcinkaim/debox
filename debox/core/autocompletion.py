@@ -55,6 +55,7 @@ BOOLEAN_KEYS = [
     "permissions.network", "permissions.bluetooth", "permissions.gpu",
     "permissions.sound", "permissions.webcam", "permissions.microphone",
     "permissions.printers", "permissions.system_dbus", "permissions.host_opener",
+    "runtime.interactive",
 ]
 
 LIST_KEYS = [
