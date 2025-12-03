@@ -2,12 +2,12 @@
 
 set -e
 
-# --- Konfiguracja ---
+# --- Configuration ---
 IMAGE_NAME="debox-fail-test"
 CONFIG_FILE="tests/test-image-fail.yml"
 REGISTRY_CONTAINER="debox-registry"
 
-# Kolory
+# Colors
 GREEN="\033[0;32m"
 RED="\033[0;31m"
 YELLOW="\033[0;33m"
@@ -15,125 +15,125 @@ NC="\033[0m"
 
 log() { echo -e "\n${YELLOW}[EDGE-TEST] $1${NC}"; }
 
-# Helpery asercji
+# Assertion helpers
 assert_fail() {
     if "$@"; then
-        echo -e "${RED}BŁĄD: Komenda powinna się nie udać, a zakończyła się sukcesem!${NC}"
+        echo -e "${RED}ERROR: Command should fail, but it succeeded!${NC}"
         exit 1
     else
-        echo -e "${GREEN}OK: Komenda poprawnie zgłosiła błąd.${NC}"
+        echo -e "${GREEN}OK: Command correctly reported an error.${NC}"
     fi
 }
 
 assert_pass() {
     if "$@"; then
-        echo -e "${GREEN}OK: Komenda zakończona sukcesem.${NC}"
+        echo -e "${GREEN}OK: Command succeeded.${NC}"
     else
-        echo -e "${RED}BŁĄD: Komenda powinna się udać, a wystąpił błąd!${NC}"
+        echo -e "${RED}ERROR: Command should succeed, but an error occurred!${NC}"
         exit 1
     fi
 }
 
-# --- PRZYGOTOWANIE ---
-# Tworzymy tymczasowy config
+# --- PREPARATION ---
+# Create temporary config
 echo "version: 1
 image_name: \"$IMAGE_NAME\"
 image:
   base: \"debian:stable-slim\"
   packages: []" > $CONFIG_FILE
 
-# Sprzątanie
+# Cleanup
 debox image rm $IMAGE_NAME > /dev/null 2>&1 || true
 rm -rf ~/.config/debox/images/$IMAGE_NAME
 
 
-# === SCENARIUSZ 1: Operacje na nieistniejących zasobach ===
-log "1. Próba wypchnięcia (push) nieistniejącego obrazu..."
-# Nie zbudowaliśmy go jeszcze, więc push musi zawieść
+# === SCENARIO 1: Operations on non-existent resources ===
+log "1. Attempting to push non-existent image..."
+# We haven't built it yet, so push must fail
 assert_fail debox image push $IMAGE_NAME
 
-log "2. Próba pobrania (pull) nieistniejącego obrazu..."
+log "2. Attempting to pull non-existent image..."
 assert_fail debox image pull "debox-non-existent-image"
 
-log "3. Próba usunięcia (rm) nieistniejącego obrazu..."
-# To powinno zawieść, bo nie ma digestu ani obrazu
+log "3. Attempting to remove (rm) non-existent image..."
+# This should fail because there is no digest or image
 assert_fail debox image rm "debox-non-existent-image"
 
 
-# === SCENARIUSZ 2: Samonaprawianie infrastruktury (Registry Down) ===
-log "4. Test Self-Healing: Zatrzymanie kontenera rejestru..."
+# === SCENARIO 2: Infrastructure Self-Healing (Registry Down) ===
+log "4. Test Self-Healing: Stopping registry container..."
 podman stop $REGISTRY_CONTAINER
-# Upewnij się, że jest zatrzymany
+# Ensure it is stopped
 if podman ps --filter name=$REGISTRY_CONTAINER --format "{{.Status}}" | grep -q "Up"; then
-    echo "Błąd: Nie udało się zatrzymać rejestru."
+    echo "Error: Failed to stop registry."
     exit 1
 fi
 
-log "   Próba wylistowania obrazów (powinna uruchomić rejestr)..."
-# To polecenie powinno wykryć, że rejestr leży, uruchomić go i zwrócić wynik
+log "   Attempting to list images (should start the registry)..."
+# This command should detect the registry is down, start it, and return the result
 assert_pass debox image list
 
-# Weryfikacja czy wstał
+# Verify if it started
 if podman ps --filter name=$REGISTRY_CONTAINER --format "{{.Status}}" | grep -q "Up"; then
-    echo -e "${GREEN}OK: Rejestr został automatycznie uruchomiony.${NC}"
+    echo -e "${GREEN}OK: Registry was automatically started.${NC}"
 else
-    echo -e "${RED}BŁĄD: Rejestr nie wstał!${NC}"
+    echo -e "${RED}ERROR: Registry did not start!${NC}"
     exit 1
 fi
 
 
-# === SCENARIUSZ 3: Desynchronizacja (Ghost Image) ===
-# Symulujemy sytuację: Debox myśli, że obraz jest (ma digest), ale w rejestrze go nie ma.
-log "5. Przygotowanie: Budowanie poprawnego obrazu..."
+# === SCENARIO 3: Desynchronization (Ghost Image) ===
+# Simulating situation: Debox thinks the image exists (has digest), but it is missing from registry.
+log "5. Preparation: Building a valid image..."
 debox image build $CONFIG_FILE > /dev/null
 
-log "   Sabotaż: Ręczne usunięcie obrazu z rejestru (bez wiedzy Deboxa)..."
-# Pobieramy digest, żeby go usunąć "za plecami" deboxa
+log "   Sabotage: Manually removing image from registry (behind Debox's back)..."
+# Fetch digest to remove it manually
 DIGEST=$(curl -s -H "Accept: application/vnd.docker.distribution.manifest.v2+json" http://localhost:5000/v2/$IMAGE_NAME/manifests/latest | grep Docker-Content-Digest | awk '{print $2}' | tr -d '\r')
-# Usuwamy manifest ręcznie przez API
+# Delete manifest manually via API
 curl -s -X DELETE http://localhost:5000/v2/$IMAGE_NAME/manifests/$DIGEST > /dev/null
 
-log "   Weryfikacja zachowania 'debox image rm' na nieistniejącym zdalnie obrazie..."
-# Debox ma zapisany digest w pliku. Spróbuje go usunąć. Rejestr zwróci 404.
-# Oczekujemy, że debox to obsłuży (wyświetli ostrzeżenie), ale POSPRZĄTA plik lokalny i zakończy sukcesem.
+log "   Verifying 'debox image rm' behavior on remotely non-existent image..."
+# Debox has the digest saved in file. It will try to delete it. Registry will return 404.
+# We expect Debox to handle this (show warning), but CLEAN UP local file and succeed.
 assert_pass debox image rm $IMAGE_NAME
 
-# Sprawdź, czy plik digestu został usunięty
+# Check if digest file was removed
 if [ -f ~/.config/debox/images/$IMAGE_NAME/.last_applied_state.json ]; then
-     # Plik może istnieć, ale nie powinien mieć klucza registry_digest.
-     # Dla uproszczenia: sprawdźmy czy ponowne rm rzuci błąd "No saved digest"
-     log "   Sprawdzenie czy lokalny ślad został usunięty..."
+     # File might exist, but shouldn't have registry_digest key.
+     # For simplicity: check if running rm again throws "No saved digest" error
+     log "   Checking if local trace was removed..."
      assert_fail debox image rm $IMAGE_NAME
 else
-     echo -e "${GREEN}OK: Lokalny ślad usunięty.${NC}"
+     echo -e "${GREEN}OK: Local trace removed.${NC}"
 fi
 
 
-# === SCENARIUSZ 4: Brak Digestu (Fallback do API) ===
-# Symulujemy sytuację: Obraz jest w rejestrze, ale Debox zgubił plik z digestem.
-log "6. Przygotowanie: Ponowne zbudowanie obrazu..."
+# === SCENARIO 4: Missing Digest (Fallback to API) ===
+# Simulating situation: Image exists in registry, but Debox lost the digest file.
+log "6. Preparation: Rebuilding image..."
 debox image build $CONFIG_FILE > /dev/null
 
-log "   Sabotaż: Usunięcie lokalnego pliku stanu..."
+log "   Sabotage: Removing local state file..."
 rm ~/.config/debox/images/$IMAGE_NAME/.last_applied_state.json
 
-log "   Weryfikacja 'debox image rm' (Fallback do API)..."
-# Debox nie znajdzie digestu w pliku. Powinien zapytać API, pobrać digest i usunąć obraz.
+log "   Verifying 'debox image rm' (Fallback to API)..."
+# Debox won't find the digest in file. It should query the API, fetch digest, and remove image.
 assert_pass debox image rm $IMAGE_NAME
 
-# Sprawdź czy faktycznie usunięto z rejestru (API powinno zwrócić 404)
+# Check if actually removed from registry (API should return 404)
 HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5000/v2/$IMAGE_NAME/manifests/latest)
 if [ "$HTTP_CODE" -eq 404 ]; then
-    echo -e "${GREEN}OK: Obraz faktycznie usunięty z rejestru.${NC}"
+    echo -e "${GREEN}OK: Image actually removed from registry.${NC}"
 else
-    echo -e "${RED}BŁĄD: Obraz nadal istnieje w rejestrze (kod $HTTP_CODE)!${NC}"
+    echo -e "${RED}ERROR: Image still exists in registry (code $HTTP_CODE)!${NC}"
     exit 1
 fi
 
 
-# --- SPRZĄTANIE KOŃCOWE ---
+# --- FINAL CLEANUP ---
 rm $CONFIG_FILE
 rm -rf ~/.config/debox/images/$IMAGE_NAME
 podman rmi localhost/$IMAGE_NAME:latest > /dev/null 2>&1 || true
 
-echo -e "\n${GREEN}=== WSZYSTKIE TESTY GRANICZNE ZAKOŃCZONE SUKCESEM ===${NC}"
+echo -e "\n${GREEN}=== ALL EDGE-CASE TESTS COMPLETED SUCCESSFULLY ===${NC}"

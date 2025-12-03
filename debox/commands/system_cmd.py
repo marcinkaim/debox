@@ -36,8 +36,8 @@ def setup_registry():
         return
 
     log_info(f"-> Ensuring global config exists at {global_config.GLOBAL_CONFIG_FILE}...")
-    config = global_config._load_config() # Załaduj (lub stwórz domyślne)
-    global_config.save_global_config(config) # Zapisz (aby utworzyć plik, jeśli go nie było)
+    config = global_config._load_config()
+    global_config.save_global_config(config)
     
     registry_address = global_config.get_registry_address()
     registry_port = config.get('registry', 'port', fallback=global_config.GLOBAL_REGISTRY_PORT)

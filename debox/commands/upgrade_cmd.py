@@ -1,7 +1,7 @@
 # debox/commands/upgrade_cmd.py
 
 from debox.core import config_utils, hash_utils, podman_utils, registry_utils
-from debox.core.log_utils import log_info, log_error, log_debug, log_warning, console, run_step
+from debox.core.log_utils import log_info, log_error, log_debug, log_warning, run_step
 
 def upgrade_app(container_name: str):
     """

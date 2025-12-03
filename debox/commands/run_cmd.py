@@ -33,7 +33,6 @@ def run_app(container_name: str, app_command_and_args: list[str]):
             log_error(f"Loading config file {config_path} failed: {e}", exit_program=True)
 
         try:
-            # Ta funkcja sama sprawdzi status i wykona pull/create tylko jeśli trzeba
             if container_ops.restore_container_from_registry(config):
                 print(f"-> Auto-restoration of '{container_name}' successful. Launching...")
         except Exception as e:

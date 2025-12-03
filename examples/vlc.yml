@@ -7,15 +7,12 @@ container_name: "debox-vlc"
 
 # --- Container Image Definition ---
 image:
-  # Dziedziczymy po naszym obrazie Qt, aby mieć style i wtyczki Waylanda
   base: "localhost/debox-base-qt:latest"
   repositories: []
   
   packages:
     - "vlc"
     - "vlc-l10n"
-    # Opcjonalnie: dodatkowe kodeki, jeśli Debianowe są za chude
-    # - "libavcodec-extra" 
 
 # --- Storage Configuration ---
 storage:
@@ -23,7 +20,6 @@ storage:
     - "~/Pobrane:/home/marcin/Pobrane"
     - "~/Wideo:/home/marcin/Wideo"
     - "~/Muzyka:/home/marcin/Muzyka"
-    # Gniazdo X11 jest potrzebne, bo VLC często preferuje XWayland dla wideo
     - "/tmp/.X11-unix:/tmp/.X11-unix:ro"
 
 # --- Runtime Process Configuration ---
@@ -38,10 +34,10 @@ integration:
 
 # --- Permissions ---
 permissions:
-  network: true    # Potrzebne do streamingu / pobierania okładek
-  bluetooth: true  # Jeśli używasz słuchawek BT
-  gpu: true        # KLUCZOWE: Dekodowanie wideo
-  sound: true      # KLUCZOWE: Odtwarzanie dźwięku
+  network: true
+  bluetooth: true
+  gpu: true
+  sound: true
   webcam: false
   microphone: false
   printers: false

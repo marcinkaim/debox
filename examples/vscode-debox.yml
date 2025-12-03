@@ -4,21 +4,18 @@ app_name: "VS Code (Debox Dev)"
 container_name: "debox-vscode-python"
 
 image:
-  # Dziedziczymy po obrazie z VS Code
   base: "localhost:5000/debox-base-vscode:latest"
   packages:
     - "python3-venv"
     - "python3-pip"
-    - "python3-typer"  # Instalujemy systemowo, żeby mieć podgląd
+    - "python3-typer"
     - "python3-rich"
-    # Narzędzia do pakowania, które będą nam potrzebne
     - "dpkg-dev"
     - "debhelper"
     - "devscripts"
 
 storage:
   volumes:
-    # Montujemy TYLKO repozytorium Debox
     - "~/Repozytoria/debox:/home/marcin/Repozytoria/debox"
     - "/run/user/1000/podman/podman.sock:/run/user/1000/podman/podman.sock"
 

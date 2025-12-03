@@ -4,7 +4,6 @@ from rich.table import Table
 
 from debox.core import config_utils as config_utils
 from debox.core import podman_utils
-# --- ADD import for the hash_utils module ---
 from debox.core import hash_utils
 from debox.core.log_utils import log_debug, log_error, log_info, log_warning, run_step, console
 
@@ -82,7 +81,7 @@ def list_installed_apps():
                     app_name,
                     container_name,
                     f"[{status_style}]{container_status}[/{status_style}]",
-                    config_status, # <-- Add new data
+                    config_status,
                     base_image,
                     str(config_path)
                 )
@@ -93,7 +92,7 @@ def list_installed_apps():
                     f"Error loading {app_dir.name}",
                     app_dir.name,
                     "[red]N/A[/red]",
-                    "[red]Invalid Config[/red]", # Add status for error row
+                    "[red]Invalid Config[/red]",
                     "N/A",
                     str(config_path),
                     style="on red"

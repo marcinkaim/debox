@@ -24,7 +24,6 @@ image:
   - "libx264-164"
 storage:
   volumes:
-    # Cheese zapisuje zdjęcia/wideo w ~/Obrazy i ~/Wideo
     - "~/Obrazy:/home/marcin/Obrazy"
     - "~/Wideo:/home/marcin/Wideo"
     - "~/.config/user-dirs.dirs:/home/marcin/.config/user-dirs.dirs:ro"
@@ -48,7 +47,7 @@ integration:
 
 
 permissions:
-  network: false  # Niepotrzebne
+  network: false
   bluetooth: false
   gpu: true
   sound: true

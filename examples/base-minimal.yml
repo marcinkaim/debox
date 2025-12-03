@@ -7,14 +7,10 @@ image_name: "debox-base-minimal"
 image:
   base: "debian:latest"
   
-  # Dla narzędzi CLI zazwyczaj wystarczy repozytorium 'main'
   debian_components: [] 
 
   packages:
-    # Niezbędne minimum dla działania debox
-    - "python3"      # Wymagany przez keep_alive.py
-    - "locales"      # Wymagany do ustawienia polskich znaków w terminalu
-    
-    # Podstawowe narzędzia przydatne w każdym kontenerze CLI
-    - "sudo"         # Często przydatne, choć nie krytyczne
-    - "less"         # Do przeglądania plików
+    - "python3"
+    - "locales"
+    - "sudo"
+    - "less"

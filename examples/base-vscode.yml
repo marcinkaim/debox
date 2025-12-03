@@ -3,10 +3,8 @@ version: 1
 image_name: "debox-base-vscode"
 
 image:
-  # Dziedziczymy po naszym głównym Debianie
   base: "localhost/debox-base:latest"
   
-  # Wskazujemy lokalną paczkę DEB z VS Code (zaktualizuj ścieżkę jeśli trzeba)
   local_debs:
     - "~/Pobrane/code_1.105.1-1760482543_amd64.deb"
 
@@ -14,8 +12,7 @@ image:
     - "git"
     - "curl"
     - "wget"
-    - "build-essential" # GCC, Make - przydatne prawie zawsze
-    # Zależności graficzne VS Code
+    - "build-essential"
     - "libxkbfile1"
     - "libnss3"
     - "libnspr4"

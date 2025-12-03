@@ -27,7 +27,6 @@ runtime:
   default_exec: "code"
   prepend_exec_args:
     - "--ozone-platform=wayland"
-    # - "--no-sandbox" 
 
 # --- Desktop Integration Configuration ---
 integration:

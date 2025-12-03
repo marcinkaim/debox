@@ -3,11 +3,6 @@
 Provides dynamic autocompletion functions for Typer.
 """
 
-import os
-from pathlib import Path
-import shlex
-import sys
-import typer
 import yaml
 from typing import List
 
@@ -70,11 +65,11 @@ MAP_KEYS = [
 ]
     
 def complete_config_keys(incomplete: str) -> List[str]:
-    """Sugeruje tylko klucze (bez ':')"""
+    """Suggests only keys (without ':')"""
     return [key for key in VALID_CONFIG_KEYS if key.startswith(incomplete)]
 
 def complete_boolean_values(incomplete: str) -> List[str]:
-    """Sugeruje tylko 'true' lub 'false'."""
+    """Suggests only 'true' or 'false'."""
     if "true".startswith(incomplete):
         return ["true"]
     if "false".startswith(incomplete):

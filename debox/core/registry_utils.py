@@ -33,7 +33,6 @@ def ensure_registry_running():
     needs_start = False
     if "running" in status.lower():
         log_debug("-> Registry is already running.")
-        # Nadal wykonaj health check
     elif "exited" in status.lower() or "created" in status.lower():
         log_info("-> Registry is not running. Starting...")
         try:
@@ -44,7 +43,7 @@ def ensure_registry_running():
     
     log_debug("-> Verifying registry is responsive...")
     registry_address = global_config.get_registry_address()
-    api_url = f"http://{registry_address}/v2/" # Podstawowy endpoint V2
+    api_url = f"http://{registry_address}/v2/"
     
     if needs_start:
         time.sleep(1) # Daj mu 1s na start
@@ -264,7 +263,7 @@ def pull_image_from_registry(image_name: str, tag: str = "latest") -> bool:
     if not ensure_registry_running():
         raise Exception("Registry could not be started.")
 
-    registry_address = global_config.get_registry_address() # np. localhost:5000
+    registry_address = global_config.get_registry_address()
     
     registry_tagged_image = f"{registry_address}/{image_name}:{tag}"
     

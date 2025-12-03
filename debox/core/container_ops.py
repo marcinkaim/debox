@@ -12,12 +12,8 @@ import getpass
 
 from debox.core import registry_utils
 from debox.core.log_utils import log_debug, log_error, log_warning
-
-# Import necessary functions/constants from other core modules
 from . import podman_utils
 from . import config_utils
-
-# --- Private Helper Functions (Moved from install_cmd.py) ---
 
 def _generate_containerfile(config: dict, host_user: str, host_uid: int, host_locale: str) -> str:
     """
@@ -26,9 +22,6 @@ def _generate_containerfile(config: dict, host_user: str, host_uid: int, host_lo
     """
     base_image = config['image']['base']
     
-    # --- WYKRYWANIE OBRAZU BAZOWEGO DEBOX ---
-    # Jeśli obraz bazowy pochodzi z localhost, zakładamy, że jest to
-    # obraz zarządzany przez debox, który ma już użytkownika, locales i keep_alive.
     is_debox_base = base_image.startswith("localhost/") or base_image.startswith("localhost:5000/")
 
     lines = [f"FROM {base_image}"]
@@ -130,15 +123,12 @@ def _generate_containerfile(config: dict, host_user: str, host_uid: int, host_lo
     if desktop_integration_enabled and host_opener_enabled:
         lines.append("\n# --- Debox Host Opener Setup ---")
         
-        # 1. Skopiuj skrypt i nadaj uprawnienia
         lines.append("COPY debox-open /usr/local/bin/debox-open")
         lines.append("RUN chmod +x /usr/local/bin/debox-open")
         
-        # 2. Skopiuj plik .desktop
         lines.append("RUN mkdir -p /usr/share/applications")
         lines.append("COPY debox-open.desktop /usr/share/applications/debox-open.desktop")
 
-        # 3. Skonfiguruj MIME (to nadal musi być komenda shella)
         mime_script = """
 mkdir -p /etc/xdg
 echo '[Default Applications]' > /etc/xdg/mimeapps.list
@@ -280,8 +270,6 @@ def _generate_podman_flags(config: dict) -> list[str]:
         xauth_path = os.environ.get("XAUTHORITY", os.path.expanduser("~/.Xauthority"))
         
         if Path(xauth_path).is_file():
-            # Montujemy go w bezpiecznym miejscu w kontenerze (np. /tmp/.Xauthority)
-            # i ustawiamy zmienną środowiskową, aby aplikacja wiedziała, gdzie go szukać.
             container_xauth_path = "/tmp/.Xauthority"
             flags.extend(["-v", f"{xauth_path}:{container_xauth_path}:ro"])
             flags.extend(["-e", f"XAUTHORITY={container_xauth_path}"])
@@ -328,7 +316,6 @@ def _generate_podman_flags(config: dict) -> list[str]:
 
                 expanded_host_path = os.path.expanduser(host_path)
                 
-                # Złóż flagę z powrotem
                 volume_flag = f"{expanded_host_path}:{container_path}:{options}"
                 flags.extend(["-v", volume_flag])
                 
@@ -471,13 +458,11 @@ def restore_container_from_registry(config: dict) -> bool:
     if not podman_utils.local_image_exists(image_tag):
         print(f"-> Local image '{image_tag}' missing. Attempting pull from registry...")
         try:
-            # To używa run_step wewnątrz registry_utils (jeśli tam jest) lub musimy to obsłużyć
-            # registry_utils.pull_image_from_registry rzuca wyjątek w razie błędu
             registry_utils.pull_image_from_registry(container_name)
             print("-> Image restored from registry.")
         except Exception as e:
             print(f"❌ Error: Failed to pull image from registry: {e}")
-            raise # Przekaż błąd wyżej
+            raise
     else:
         print("-> Local image found.")
 

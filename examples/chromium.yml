@@ -15,14 +15,7 @@ storage:
 runtime:
   default_exec: "chromium"
   prepend_exec_args:
-    # Wymuszenie natywnego Waylanda (Ozone)
-    # To rozwiązuje problem rozmytych czcionek na skalowaniu HiDPI
     - "--ozone-platform=wayland"
-    # - "--disable-gpu"
-    
-    # Chromium w kontenerze user-namespace ZAZWYCZAJ działa z sandboxem,
-    # ale jeśli będą błędy "Zygote", można dodać "--no-sandbox".
-    # - "--no-sandbox" 
 
 integration:
   desktop_integration: true
@@ -32,9 +25,9 @@ integration:
 
 permissions:
   network: true
-  gpu: true       # Kluczowe dla Chromium
+  gpu: true
   sound: true
-  webcam: true    # Możesz przetestować kamerę
+  webcam: true
   microphone: true
   system_dbus: true
   devices: []

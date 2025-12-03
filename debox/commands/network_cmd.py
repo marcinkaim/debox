@@ -7,7 +7,6 @@ Handles runtime network changes by acting as a shortcut for
 
 import sys
 from debox.core import config_utils
-# Import the command logic we are going to call
 from debox.commands import configure_cmd
 from debox.commands import apply_cmd
 from debox.core.log_utils import LogLevels, log_debug, log_error, log_info, log_warning, temp_log_level

@@ -6,19 +6,16 @@ container_name: "debox-vscode-lisp"
 image:
   base: "localhost:5000/debox-base-vscode:latest"
   packages:
-    # Narzędzia C/C++
     - "clang"
     - "lldb"
     - "gdb"
     - "cmake"
     - "valgrind"
-    # Lisp
     - "sbcl"
     - "clisp"
 
 storage:
   volumes:
-    # Montujemy katalog projektu Lisp (stwórz go testowo na hoście)
     - "~/Repozytoria/lisp-machine:/home/marcin/Repozytoria/lisp-machine"
     - "/run/user/1000/podman/podman.sock:/run/user/1000/podman/podman.sock"
 

@@ -9,9 +9,6 @@ if [ -z "$TARGET_URL" ]; then
     exit 1
 fi
 
-# --- SECURITY CHECK ---
-# Pozwól tylko na protokoły http i https.
-# Odrzuć file://, mailto://, itp.
 case "$TARGET_URL" in
     http://*|https://*)
         ;;

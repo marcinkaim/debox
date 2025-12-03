@@ -5,31 +5,24 @@ app_name: "Cheese"
 container_name: "debox-cheese"
 
 image:
-  # Cheese to aplikacja GTK, używamy standardowej bazy
   base: "localhost/debox-base:latest"
   repositories: []
   
   packages:
     - "cheese"
-    # GStreamer pluginy są zazwyczaj ciągnięte jako zależności Cheese,
-    # ale dla pewności w środowisku minimalnym:
     - "gstreamer1.0-plugins-good" 
     - "gstreamer1.0-plugins-bad"
     - "gstreamer1.0-libav"
-    # - "libcheese-gtk25"
 
 storage:
   volumes:
-    # Cheese zapisuje zdjęcia/wideo w ~/Obrazy i ~/Wideo
     - "~/Obrazy:/home/marcin/Obrazy"
     - "~/Wideo:/home/marcin/Wideo"
 
 runtime:
   default_exec: "cheese"
   environment: []
-    # Wymusza backend X11 dla Clutter (biblioteki używanej przez Cheese)
     # CLUTTER_BACKEND: "x11"
-    # # Opcjonalnie dla GTK
     # GDK_BACKEND: "x11"
   prepend_exec_args: []
 
@@ -38,12 +31,12 @@ integration:
   skip_categories: []
 
 permissions:
-  network: false  # Niepotrzebne
+  network: false
   bluetooth: false
-  gpu: true       # Cheese używa GPU do efektów
-  sound: true     # Do nagrywania wideo z dźwiękiem (migawka też wydaje dźwięk)
-  webcam: true    # KLUCZOWE: Montuje /dev/video*
-  microphone: false # Cheese domyślnie nagrywa wideo bez dźwięku, chyba że włączysz
+  gpu: true
+  sound: true
+  webcam: true
+  microphone: false
   printers: false
   system_dbus: true
   devices: []

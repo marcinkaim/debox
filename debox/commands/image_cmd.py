@@ -88,7 +88,6 @@ def list_images():
                     if not config or 'container_name' not in config: continue
                     
                     container_name = config['container_name']
-                    # Pobierz status kontenera (teraz zawiera info o obrazie)
                     container_status = podman_utils.get_container_status(container_name)
                     
                     image_data_map[container_name] = {
@@ -96,7 +95,7 @@ def list_images():
                         'base_image': config.get('image', {}).get('base', 'N/A'),
                         'status': hash_utils.get_installation_status(app_dir),
                         'container_status': container_status,
-                        'in_registry': False, # Domyślnie False, sprawdzimy w Kroku 3
+                        'in_registry': False,
                         'container_name': container_name,
                         'tags': []
                     }
@@ -150,13 +149,13 @@ def list_images():
         name = item.get('container_name', item.get('app_name', ''))
         
         if not item['in_registry']:
-            if item['status'] == hash_utils.STATUS_INSTALLED: return (3, 1, name) # 3a
-            else: return (3, 2, name) # 3b
+            if item['status'] == hash_utils.STATUS_INSTALLED: return (3, 1, name)
+            else: return (3, 2, name)
         elif item['app_name'] == 'N/A (Orphaned Image)':
-            return (2, 0, name) # 2
+            return (2, 0, name)
         else:
-            if item['status'] == hash_utils.STATUS_INSTALLED: return (1, 1, name) # 1a
-            else: return (1, 2, name) # 1b
+            if item['status'] == hash_utils.STATUS_INSTALLED: return (1, 1, name)
+            else: return (1, 2, name)
             
     table_data = sorted(image_data_map.values(), key=sort_key)
 
@@ -170,7 +169,6 @@ def list_images():
     
     for item in table_data:
         if item['in_registry'] and item.get('tags'):
-             # Używamy pierwszego tagu (zazwyczaj 'latest')
              tag = item['tags'][0]
              image_str = f"{item['container_name']}:{tag}"
         else:
@@ -395,7 +393,7 @@ def restore_images(container_name: str = None, all_apps: bool = False):
                 console.print(f"✅ Restored '{name}'.", style="green")
                 restored_count += 1
             else:
-                if container_name: # Jeśli użytkownik prosił o konkretny, a on istnieje
+                if container_name:
                     console.print(f"-> '{name}' already exists. Skipping.", style="dim")
         except Exception as e:
             console.print(f"❌ Failed to restore '{name}': {e}", style="bold red")

@@ -322,7 +322,6 @@ def _export_icons(container_name: str, icon_names: list[str]) -> bool:
     log_debug(f"-> Starting icon export for names: {icon_names}")
 
     user_icon_dir = Path(os.path.expanduser("~/.local/share/icons"))
-    # Domyślny bezpieczny rozmiar dla ikon z pixmaps
     TARGET_SIZE = 256 
     fallback_base_dir = user_icon_dir / "hicolor"
     

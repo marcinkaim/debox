@@ -3,7 +3,7 @@
 from pathlib import Path
 from typing import Optional
 from debox.core import config_utils, hash_utils
-from debox.core.log_utils import log_debug, log_info, log_error, console
+from debox.core.log_utils import log_debug, log_info, log_error
 from debox.commands import install_cmd
 from debox.commands import remove_cmd
 

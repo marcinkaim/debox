@@ -18,15 +18,8 @@ runtime:
   default_exec: "google-chrome-stable"
   prepend_exec_args:
     - "--ozone-platform=wayland"
-    
-    # --- Nowe flagi stabilizujące GPU w VM ---
-    # Wyłącza współdzielenie tekstur GPU (częsta przyczyna "Buffer Handle is null")
     - "--disable-gpu-compositing" 
-    
-    # Opcjonalnie: Wyłącz rasteryzację GPU, jeśli powyższe nie pomoże
     - "--disable-gpu-rasterization"
-    
-    # Opcjonalnie: Wymuś konkretny backend Vulkan lub GL (w zależności od VM)
     - "--use-gl=egl"
 
 integration:

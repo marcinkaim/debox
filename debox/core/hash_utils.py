@@ -47,18 +47,13 @@ def calculate_hashes(config: dict) -> Dict[str, str]:
     """
     hashes = {}
     
-    # Standardowe sekcje
     for section in ['image', 'storage', 'runtime', 'permissions']:
         hashes[section] = _calculate_section_hash(config.get(section, {}))
     
-    # Specjalna obsługa sekcji 'integration'
     int_conf = config.get('integration', {})
     
-    # 1. Pełny hash (do wykrywania jakichkolwiek zmian, np. aliasów)
     hashes['integration'] = _calculate_section_hash(int_conf)
     
-    # 2. Hash krytyczny (tylko opcje wpływające na flagi 'podman create')
-    # Obecnie tylko 'desktop_integration' (bool) wpływa na montowanie gniazd/X11
     critical_data = {'desktop_integration': int_conf.get('desktop_integration', True)}
     hashes['integration_critical'] = _calculate_section_hash(critical_data)
 
@@ -178,13 +173,10 @@ def save_image_digest(app_config_dir: Path, digest: str):
     Saves digest of pushed image to state file.
     """
     state_file = app_config_dir / STATE_FILE_NAME
-    # Wczytaj istniejące hashe, aby ich nie nadpisać
     hashes = get_last_applied_hashes(app_config_dir)
     
-    # Dodaj lub zaktualizuj digest
     hashes[STATE_KEY_REGISTRY_DIGEST] = digest
     
-    # Zapisz z powrotem
     save_last_applied_hashes(app_config_dir, hashes)
     log_debug(f"-> Saved registry digest {digest} to {state_file}")
 

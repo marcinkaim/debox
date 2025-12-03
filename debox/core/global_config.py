@@ -22,14 +22,12 @@ def _load_config() -> configparser.ConfigParser:
     """Loads the config file, applying defaults if it doesn't exist."""
     config = configparser.ConfigParser()
     
-    # Ustaw wartości domyślne
     config['registry'] = {
         'host': DEFAULT_REGISTRY_HOST,
         'port': DEFAULT_REGISTRY_PORT,
         'name': DEFAULT_REGISTRY_NAME
     }
     
-    # Wczytaj plik, jeśli istnieje (nadpisze domyślne)
     if GLOBAL_CONFIG_FILE.is_file():
         config.read(GLOBAL_CONFIG_FILE)
         

@@ -133,7 +133,7 @@ def repair(
     """
     repair_cmd.repair_app(container_name)
 
-@app.command(name="list") # Use 'name' to avoid conflict with the Python keyword 'list'
+@app.command(name="list")
 def list_apps():
     """
     Lists all installed debox applications and their status.
@@ -333,11 +333,10 @@ def image_list():
 def image_rm(
     image_name: Annotated[str, typer.Argument(
         help="The name of the image in the registry (e.g., 'debox-firefox').",
-        # TODO: Stworzyć autouzupełnianie dla obrazów z rejestru
     )],
     tag: Annotated[str, typer.Argument(
         help="The tag of the image to remove (e.g., 'latest')."
-    )] = "latest" # Domyślnie 'latest'
+    )] = "latest"
 ):
     """
     Permanently deletes an image (by tag) from the local debox registry.

@@ -88,7 +88,6 @@ def remove_app(container_name: str, purge_home: bool):
         ):
             app_home_dir = config_utils.get_app_home_dir(container_name, create=False)
             if app_home_dir.is_dir():
-                # shutil.rmtree(app_home_dir)
                 cmd = ["podman", "unshare", "rm", "-rf", str(app_home_dir)]
                 podman_utils.run_command(cmd, check=True)
             else:

@@ -6,7 +6,6 @@ image:
   repositories: []
   
   packages:
-    # --- Fundamenty Electrona/Chromium ---
     - "libnss3"
     - "libnspr4"
     - "libatk1.0-0"
@@ -20,8 +19,6 @@ image:
     - "libxcomposite1"
     - "libxdamage1"
     - "libxrandr2"
-    - "xdg-utils"
-    
-    # --- Czcionki i ikony ---
+    - "xdg-utils"    
     - "fonts-liberation"
-    - "libappindicator3-1" # Często wymagane do tray icon
+    - "libappindicator3-1"
