@@ -133,7 +133,7 @@ def repair(
     """
     repair_cmd.repair_app(container_name)
 
-@app.command(name="list")
+@app.command(name="list") # Use 'name' to avoid conflict with the Python keyword 'list'
 def list_apps():
     """
     Lists all installed debox applications and their status.
