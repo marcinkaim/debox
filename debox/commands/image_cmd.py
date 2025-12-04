@@ -17,8 +17,7 @@ from debox.core.log_utils import log_info, log_error, log_debug, console, log_wa
 
 def push_image(container_name: str):
     """
-    Pushes an existing local debox image to the local registry
-    and saves the resulting digest.
+    Backs up the local image of an application to the internal registry.
     """
     log_info(f"--- Pushing image for {container_name} to local registry ---")
     image_tag_local = f"localhost/{container_name}:latest"
@@ -60,7 +59,7 @@ def push_image(container_name: str):
 
 def list_images():
     """
-    Lists all configured debox applications and their registry/install status.
+    Displays a status table of images in the internal registry.
     """
     log_info("--- Querying Debox Application Status ---")
     
@@ -190,8 +189,7 @@ def list_images():
 
 def remove_image_from_registry(image_name: str, tag: str, ignore_errors: bool = False):
     """
-    Implements the 3-step process to delete an image from the local registry
-    using the *saved digest* from the config file.
+    Permanently deletes an image from the internal registry.
     """
     log_info(f"--- Removing image {image_name}:{tag} from local registry ---")
 
@@ -257,8 +255,7 @@ def remove_image_from_registry(image_name: str, tag: str, ignore_errors: bool = 
 
 def pull_image(image_name_input: str):
     """
-    Pulls an image from the local registry into Podman cache.
-    Handles input in format 'image_name' (defaults to latest) or 'image_name:tag'.
+    Restores an image from the internal registry to the Podman cache.
     """
     if ":" in image_name_input:
         image_name, tag = image_name_input.split(":", 1)
@@ -279,9 +276,8 @@ def pull_image(image_name_input: str):
 
 def prune_registry(dry_run: bool):
     """
-    Cleans up the local registry storage.
-    Identifies orphaned images (no matching local config) and removes them,
-    then runs Garbage Collection.
+    Cleans up unused data in the registry (Garbage Collection).
+    Also identifies and removes orphaned images.
     """
     log_info("--- Pruning Local Registry Storage ---")
     
@@ -354,8 +350,7 @@ def prune_registry(dry_run: bool):
 
 def restore_images(container_name: str = None, all_apps: bool = False):
     """
-    Restores deleted containers/images from the local registry.
-    Can restore a single app or all configured apps.
+    Restores missing containers and images from the registry based on local config.
     """
     if not container_name and not all_apps:
         console.print("❌ Error: You must specify a container name or use --all.", style="bold red")
@@ -405,7 +400,7 @@ def restore_images(container_name: str = None, all_apps: bool = False):
 
 def build_base_image(config_path: Path):
     """
-    Builds a shared base image and pushes it to the local registry.
+    Builds a shared base image from a configuration file and pushes it to the registry.
     """
     console.print(f"--- Building Base Image from: {config_path} ---", style="bold")
 

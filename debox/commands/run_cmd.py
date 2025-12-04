@@ -11,11 +11,11 @@ from debox.core.log_utils import log_debug, log_error
 
 def run_app(container_name: str, app_command_and_args: list[str]):
     """
-    Ensures the container is running, then executes a command.
-    Intelligently enables TTY (-it) if run from a terminal.
-    - If 'app_command_and_args' is provided (via '--'), it's executed.
-    - If 'app_command_and_args' is empty, 'runtime.default_exec' from config is used.
-    It then stops the container on application exit.
+    Launch an application inside its container.
+
+    Ensures the container is running and executes the specified command (or default).
+    Automatically handles TTY allocation for interactive applications and manages
+    the container lifecycle (starts before execution, stops after exit).
     """
             
     try:

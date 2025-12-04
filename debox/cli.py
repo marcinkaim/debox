@@ -1,11 +1,11 @@
 # debox/debox/cli.py
 
 from typing import Optional
-from debox.commands import image_cmd
 import typer
 from typing_extensions import Annotated
 from pathlib import Path
 
+from debox.commands import image_cmd
 from debox.core import autocompletion
 from debox.core.autocompletion import (
     complete_container_names, 
@@ -14,8 +14,6 @@ from debox.core.autocompletion import (
     LIST_KEYS, MAP_KEYS, BOOLEAN_KEYS
 )
 from debox.core.log_utils import LogLevels, log_error, set_log_level
-# Import the modules that will contain the logic for each command.
-# We will create these files in the next steps.
 from .commands import (
     install_cmd, 
     remove_cmd, 
@@ -34,15 +32,15 @@ from .commands import (
 def main_callback(
     verbose: Annotated[bool, typer.Option(
         "--verbose", "-v", 
-        help="Show detailed technical (DEBUG) log messages."
+        help="Enable verbose output with detailed technical logs."
     )] = False,
     quiet: Annotated[bool, typer.Option(
         "--quiet", "-q",
-        help="Show only WARNING and ERROR messages."
+        help="Suppress all output except errors and warnings."
     )] = False
 ):
     """
-    Main callback to set global flags like log level.
+    Debox: A container-based desktop application manager for Debian.
     """
     if verbose:
         set_log_level(LogLevels.DEBUG)
@@ -52,20 +50,21 @@ def main_callback(
         set_log_level(LogLevels.INFO)
 
 app = typer.Typer(
-    help="A container manager for desktop applications on Debian, powered by Podman.",
-    callback=main_callback
+    help="Manage desktop applications in isolated Podman containers.",
+    callback=main_callback,
+    add_completion=True
 )
 
 @app.command()
 def install(
     container_name: Annotated[Optional[str], typer.Argument(
-        help="The unique container name (optional if --config is used).",
+        help="The unique name for the new container (e.g., 'debox-firefox'). Optional if --config is used.",
         autocompletion=autocompletion.complete_container_names,
         show_default=False
     )] = None,
     config_file: Annotated[Optional[Path], typer.Option(
         "--config", "-c",
-        help="Path to the .yml config file (required for a new install).",
+        help="Path to the YAML configuration file. Required for new installations.",
         exists=True,
         file_okay=True,
         dir_okay=False,
@@ -73,10 +72,10 @@ def install(
     )] = None
 ):
     """
-    Installs a new application from a config file.
-    Use 'debox apply' or 'debox reinstall' to repair/update.
-    """
+    Install a new application or re-run installation for an existing one.
     
+    If the application is already installed, this command checks if the configuration matches.
+    """
     if not container_name and not config_file:
         log_error("You must provide a container name, a --config file, or both.")
         raise typer.Exit(code=1)
@@ -86,27 +85,30 @@ def install(
 @app.command()
 def remove(
     container_name: Annotated[str, typer.Argument(
-        help="The unique container name to remove.",
+        help="The unique name of the container to remove.",
         autocompletion=autocompletion.complete_container_names
     )],
-    # Poprawka w opisie flagi
-    purge_home: Annotated[bool, typer.Option("--purge", help="Also remove the config and isolated home directory.")] = False
+    purge_home: Annotated[bool, typer.Option(
+        "--purge", 
+        help="Delete the configuration directory, isolated home directory, and registry backup."
+    )] = False
 ):
     """
-    Removes container, image, and desktop integration.
-    By default, keeps config and data. Use --purge to remove everything.
+    Remove an application and its resources.
+    
+    By default, preserves user data and configuration. Use --purge to delete everything.
     """
     remove_cmd.remove_app(container_name, purge_home)
 
 @app.command("reinstall")
 def reinstall(
      container_name: Annotated[str, typer.Argument(
-        help="The unique container name to reinstall.",
+        help="The unique name of the container to reinstall.",
         autocompletion=autocompletion.complete_container_names
     )],
     config_file: Annotated[Optional[Path], typer.Option(
         "--config", "-c",
-        help="Path to a new .yml config file to use for the reinstall.",
+        help="Path to a new configuration file to replace the existing one.",
         exists=True,
         file_okay=True,
         dir_okay=False,
@@ -114,62 +116,67 @@ def reinstall(
     )] = None
 ):
     """
-    Forces a clean reinstall (remove artifacts + install).
-    Keeps the isolated home directory by default.
-    Uses --config to replace the existing configuration.
+    Reinstall an application from scratch.
+    
+    This removes the existing container and image, then installs it again using the 
+    current (or provided) configuration. Preserves user data in the home directory.
     """
     reinstall_cmd.reinstall_app(container_name, config_file)
 
 @app.command("repair")
 def repair(
      container_name: Annotated[str, typer.Argument(
-        help="The unique container name to repair.",
+        help="The unique name of the container to repair.",
         autocompletion=autocompletion.complete_container_names
     )]
 ):
     """
-    Repairs an installation by recreating the container and reintegrating.
-    This does NOT rebuild the image or touch your data.
+    Repair an application installation.
+    
+    Recreates the container instance and re-applies desktop integration without 
+    rebuilding the image. Useful for fixing broken shortcuts or permissions.
     """
     repair_cmd.repair_app(container_name)
 
-@app.command(name="list") # Use 'name' to avoid conflict with the Python keyword 'list'
+@app.command(name="list") 
 def list_apps():
     """
-    Lists all installed debox applications and their status.
+    List all installed applications and their status.
     """
     list_cmd.list_installed_apps()
 
 @app.command()
 def run(
-    app_name: Annotated[str, typer.Argument(
-        help="The name of the application container (e.g., 'debox-vscode').",
+    container_name: Annotated[str, typer.Argument(
+        help="The unique name of the container to run.",
         autocompletion=complete_container_names
     )],
-    # Capture extra arguments passed after app_name
-    app_args: Annotated[list[str], typer.Argument(help="Arguments to pass to the application inside the container.",
-                                                   hidden=True)] = None # 'hidden=True' hides it from --help
+    app_command_and_args: Annotated[list[str], typer.Argument(
+        help="Command and arguments to execute inside the container. If empty, uses the default command.",
+        hidden=True
+    )] = None
 ):
     """
-    Launches an application inside its container, passing extra arguments.
+    Launch an application inside its container.
     """
-    # Pass the collected arguments to the backend function
-    run_cmd.run_app(app_name, app_args if app_args else [])
+    run_cmd.run_app(container_name, app_command_and_args if app_command_and_args else [])
 
 @app.command("safe-prune")
 def safe_prune(
-    force: Annotated[bool, typer.Option("-f", "--force", help="Do not prompt for confirmation.")] = False
+    force: Annotated[bool, typer.Option("-f", "--force", help="Skip confirmation prompt.")] = False
 ):
     """
-    Removes unused Podman data (containers, images, networks, volumes)
-    EXCEPT for those managed by debox (labeled 'debox.managed=true').
+    Clean up unused Podman resources.
+    
+    Removes dangling images, stopped containers, and networks, but preserves 
+    resources managed by debox (labeled 'debox.managed=true').
     """
     safe_prune_cmd.prune_resources(force)
 
 @app.command()
 def configure(
     container_name: Annotated[str, typer.Argument(
-        help="The unique container name to configure.",
+        help="The unique name of the container to configure.",
         autocompletion=complete_container_names
     )],
     key: Annotated[str, typer.Option(
@@ -177,38 +184,33 @@ def configure(
         help="The configuration key to modify (e.g., 'permissions.network').",
         autocompletion=complete_config_keys
     )],
-    
     set_value: Annotated[str, typer.Option(
         "--set", "-s",
-        help="Set a simple value (string or boolean).",
+        help="Set a value.",
         autocompletion=complete_boolean_values
     )] = None,
-    
     add_value: Annotated[str, typer.Option(
         "--add",
-        help="Add a value to a list (e.g., image.packages)."
+        help="Add a value to a list."
     )] = None,
-    
     remove_value: Annotated[str, typer.Option(
         "--remove", "-r",
         help="Remove a value from a list."
     )] = None,
-    
     map_value: Annotated[str, typer.Option(
         "--map", "-m",
-        help="Set a key-value pair in a map (e.g., 'firefox-esr=ff-dev')."
+        help="Set a key-value pair in a map."
     )] = None,
-    
     unmap_key: Annotated[str, typer.Option(
         "--unmap", "-u",
         help="Remove a key from a map."
     )] = None
 ):
     """
-    Modifies the configuration for an installed application.
-    Changes must be applied with 'debox apply'.
-    """
+    Modify the configuration of an installed application.
     
+    Changes are staged and must be applied using 'debox apply'.
+    """
     actions = {
         'set': set_value,
         'add': add_value,
@@ -230,9 +232,10 @@ def configure(
 
     action_name, value = provided_actions[0]
 
+    # Basic validation
     if key in LIST_KEYS and action_name not in ("add", "remove"):
         log_error(f"Action '--{action_name}' is invalid for list key '{key}'. Use --add or --remove.", exit_program=True)
-    if key in MAP_KEYS and action_name not in ("set_map", "unmap"):
+    if key in MAP_KEYS and action_name not in ("set_map", "unset_map"):
         log_error(f"Action '--{action_name}' is invalid for map key '{key}'. Use --map or --unmap.", exit_program=True)
     if key in BOOLEAN_KEYS and action_name != "set":
         log_error(f"Action '--{action_name}' is invalid for boolean/simple key '{key}'. Use --set.", exit_program=True)
@@ -244,151 +247,157 @@ def configure(
 @app.command()
 def apply(
     container_name: Annotated[str, typer.Argument(
-        help="The unique container name to apply changes to.",
+        help="The unique name of the container to apply changes to.",
         autocompletion=complete_container_names
     )]
 ):
     """
-    Applies any pending configuration changes made via 'debox configure'.
-    This may rebuild the image and/or recreate the container.
+    Apply pending configuration changes.
+    
+    Detects changes made by 'debox configure' and rebuilds the image or recreates 
+    the container as necessary.
     """
     apply_cmd.apply_changes(container_name)
 
-network_app = typer.Typer(help="Statically configure container network access (requires container recreate).")
+@app.command()
+def upgrade(
+    container_name: Annotated[str, typer.Argument(
+        help="The unique name of the container to upgrade.",
+        autocompletion=autocompletion.complete_container_names
+    )]
+):
+    """
+    Upgrade system packages inside the container.
+    
+    Runs 'apt upgrade' inside the container, commits the changes, and pushes 
+    the updated image to the registry. Does not change the configuration.
+    """
+    upgrade_cmd.upgrade_app(container_name)
+
+
+# --- Subcommand Groups ---
+
+network_app = typer.Typer(help="Manage container network connectivity.")
 app.add_typer(network_app, name="network")
 
 @network_app.command("allow")
 def network_allow(
     container_name: Annotated[str, typer.Argument(
-        help="The unique container name to reconfigure.",
+        help="The unique name of the container.",
         autocompletion=complete_container_names
     )]
 ):
     """
-    Sets 'permissions.network: true' in config and applies the change.
-    This will recreate the container.
+    Enable network access for an application (recreates container).
     """
     network_cmd.allow_network(container_name)
 
 @network_app.command("deny")
 def network_deny(
     container_name: Annotated[str, typer.Argument(
-        help="The unique container name to reconfigure.",
+        help="The unique name of the container.",
         autocompletion=complete_container_names
     )]
 ):
     """
-    Sets 'permissions.network: false' in config and applies the change.
-    This will recreate the container.
+    Disable network access for an application (recreates container).
     """
     network_cmd.deny_network(container_name)
 
-@app.command()
-def upgrade(
-    container_name: Annotated[str, typer.Argument(
-        help="The unique container name to upgrade.",
-        autocompletion=autocompletion.complete_container_names
-    )]
-):
-    """
-    Upgrades all packages inside a container (in-place 'apt upgrade').
-    This is a fast update. Does not change configuration.
-    """
-    upgrade_cmd.upgrade_app(container_name)
-
-system_app = typer.Typer(help="Manage the debox runtime environment (registry, etc.).")
+system_app = typer.Typer(help="Manage the debox system environment.")
 app.add_typer(system_app, name="system")
 
 @system_app.command("setup-registry")
 def setup_registry():
     """
-    Creates and configures a local, rootless Podman registry.
-    This command is idempotent (safe to run multiple times).
+    Initialize the local image registry.
+    
+    Creates the registry container, storage volume, and configures Podman to trust it.
+    Safe to run multiple times.
     """
     system_cmd.setup_registry()
 
-image_app = typer.Typer(help="Manage local and registry images.")
+image_app = typer.Typer(help="Manage local images and the internal registry.")
 app.add_typer(image_app, name="image")
 
 @image_app.command("push")
 def image_push(
     container_name: Annotated[str, typer.Argument(
-        help="The container name (e.g., 'debox-firefox') whose image you want to push.",
+        help="The name of the container (e.g., 'debox-firefox') to backup.",
         autocompletion=autocompletion.complete_container_names
     )]
 ):
     """
-    Pushes the built local image for an app to the local registry.
+    Backup a local application image to the internal registry.
     """
     image_cmd.push_image(container_name)
 
 @image_app.command("list")
 def image_list():
     """
-    Lists all images currently backed up in the local debox registry.
+    List images stored in the internal registry.
     """
     image_cmd.list_images()
 
 @image_app.command("rm")
 def image_rm(
     image_name: Annotated[str, typer.Argument(
-        help="The name of the image in the registry (e.g., 'debox-firefox').",
+        help="The name of the image in the registry.",
     )],
     tag: Annotated[str, typer.Argument(
-        help="The tag of the image to remove (e.g., 'latest')."
+        help="The tag to remove."
     )] = "latest"
 ):
     """
-    Permanently deletes an image (by tag) from the local debox registry.
+    Remove an image from the internal registry.
     """
     image_cmd.remove_image_from_registry(image_name, tag)
 
 @image_app.command("pull")
 def image_pull(
     image_name: Annotated[str, typer.Argument(
-        help="The name of the image to pull (e.g. 'debox-firefox' or 'debox-firefox:latest')."
+        help="The name of the image to pull (e.g. 'debox-firefox')."
     )]
 ):
     """
-    Restores an image from the local registry to the Podman cache.
+    Restore an image from the internal registry to the local Podman cache.
     """
     image_cmd.pull_image(image_name)
 
 @image_app.command("prune")
 def image_prune(
-    dry_run: Annotated[bool, typer.Option("--dry-run", help="Show what would be deleted without deleting.")] = False
+    dry_run: Annotated[bool, typer.Option("--dry-run", help="Simulate the cleanup without deleting data.")] = False
 ):
     """
-    Runs Garbage Collection on the local registry to free up disk space.
-    Removes unreferenced blobs and layers.
+    Clean up unused data in the internal registry.
     """
     image_cmd.prune_registry(dry_run)
 
 @image_app.command("restore")
 def image_restore(
     container_name: Annotated[Optional[str], typer.Argument(
-        help="The specific container to restore.",
+        help="The specific container name to restore.",
         autocompletion=autocompletion.complete_container_names
     )] = None,
     all_apps: Annotated[bool, typer.Option(
         "--all", "-a",
-        help="Restore all configured applications that are missing."
+        help="Restore all configured applications."
     )] = False
 ):
     """
-    Restores missing containers/images from the registry using local config.
+    Restore missing containers or images from the registry.
     """
     image_cmd.restore_images(container_name, all_apps)
 
 @image_app.command("build")
 def image_build(
     config_file: Annotated[Path, typer.Argument(
-        help="Path to the .yml config file for the base image.",
+        help="Path to the base image configuration file.",
         exists=True, file_okay=True, dir_okay=False, readable=True
     )]
 ):
     """
-    Builds a shared base image from a config file and pushes it to the registry.
+    Build a shared base image from a configuration file.
     """
     image_cmd.build_base_image(config_file)
 

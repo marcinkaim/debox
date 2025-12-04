@@ -6,8 +6,10 @@ from debox.core.log_utils import log_debug, log_error, log_info
 
 def configure_app(container_name: str, key: str, value: str, action: str):
     """
-    Loads, modifies, and saves an application's configuration file
-    and sets the .needs_apply flag.
+    Modifies the configuration file for an application.
+    
+    Updates the YAML file and sets a flag indicating that changes are pending.
+    Does not apply changes to the container immediately.
     """
     log_debug(f"--- Configuring application: {container_name} ---")
     

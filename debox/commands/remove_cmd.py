@@ -10,7 +10,11 @@ from debox.core.log_utils import log_debug, log_error, log_info, log_warning, ru
 
 def remove_app(container_name: str, purge_home: bool):
     """
-    Removes application artifacts based on installation status and --purge flag.
+    RRemoves an application and its associated resources.
+    
+    Deletes desktop integration files, the Podman container, and the local image.
+    If --purge is used, also deletes the configuration directory, the isolated 
+    home directory, and the backup image from the registry.
     """
     console.print(f"--- Removing application: {container_name} ---", style="bold")
 

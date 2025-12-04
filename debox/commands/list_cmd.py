@@ -9,8 +9,9 @@ from debox.core.log_utils import log_debug, log_error, log_info, log_warning, ru
 
 def list_installed_apps():
     """
-    Lists all applications managed by debox, their container status,
-    and their configuration status.
+    Displays a table of all applications managed by debox.
+    
+    Shows container status, configuration sync status, and base image information.
     """
     table = Table(title="Debox Managed Applications")
 

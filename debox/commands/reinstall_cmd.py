@@ -9,8 +9,10 @@ from debox.commands import remove_cmd
 
 def reinstall_app(container_name: str, config_path: Optional[Path]):
     """
-    Forces a clean reinstall by running 'remove' (without purge)
-    and then 'install' (which finds the existing config or uses the new one).
+    Performs a full re-installation of an application.
+    
+    Removes the existing container and image (preserving data), then runs 
+    the installation process again using the existing (or new) configuration.
     """
     log_info(f"--- Reinstalling application: {container_name} ---")
     

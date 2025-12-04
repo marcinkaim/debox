@@ -9,8 +9,10 @@ DEBOX_LABEL_FILTER = "label!=debox.managed=true"
 
 def prune_resources(force: bool):
     """
-    Executes 'podman system prune', filtering out debox resources.
-    Handles confirmation prompt internally and always shows podman output.
+    Clean up unused Podman resources safely.
+
+    Executes 'podman system prune' with a filter to protect debox-managed resources.
+    Removes dangling images, stopped containers, and unused networks/volumes.
     """
     log_debug("--- Starting Safe Prune Operation ---")
 

@@ -11,8 +11,10 @@ from debox.core.log_utils import log_debug, log_error, log_info, log_warning, ru
 
 def apply_changes(container_name: str):
     """
-    Compares current config hashes against saved state and performs
-    rebuild, recreate, or reintegration actions as needed.
+    Applies pending configuration changes to an application.
+    
+    Detects changes by comparing configuration hashes and performs the necessary
+    actions (rebuild image, recreate container, update desktop integration) efficiently.
     """
     log_debug(f"--- Applying configuration changes for: {container_name} ---")
 

@@ -11,7 +11,6 @@ from debox.core.log_utils import log_debug, log_info, log_error, console, run_st
 from debox.core import podman_utils
 from debox.core import global_config
 
-# --- Stałe ---
 REGISTRY_IMAGE = "docker.io/library/registry:2"
 
 STORAGE_DIR = Path(os.path.expanduser("~/.local/share/debox/registry"))
@@ -22,8 +21,10 @@ REGISTRY_CONFIG_FILE = REGISTRY_CONFIG_DIR / "config.yml"
 
 def setup_registry():
     """
-    Implements the idempotent setup for the local rootless registry.
-    Reads port configuration from global_config.
+    Initialize the local image registry environment.
+
+    Creates the registry container, configures local storage, and updates Podman
+    configuration to trust the local registry. Safe to run multiple times (idempotent).
     """
     registry_name = global_config.get_registry_name()
     registry_address = global_config.get_registry_address()

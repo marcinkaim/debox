@@ -1,8 +1,7 @@
 # debox/commands/network_cmd.py
 
 """
-Handles runtime network changes by acting as a shortcut for
-'debox configure' and 'debox apply'.
+Handles runtime network configuration changes.
 """
 
 import sys
@@ -13,11 +12,7 @@ from debox.core.log_utils import LogLevels, log_debug, log_error, log_info, log_
 
 def _set_network_permission(container_name: str, allow: bool):
     """
-    Internal helper function to configure and apply the network setting.
-    
-    Args:
-        container_name: The name of the container to modify.
-        allow: True to allow network, False to deny.
+    Helper function to update the network permission and apply changes immediately.
     """
     allow_str = str(allow).lower() # Converts True to 'true', False to 'false'
     action_str = "Enabling" if allow else "Disabling"
@@ -73,13 +68,13 @@ def _set_network_permission(container_name: str, allow: bool):
 
 def allow_network(container_name: str):
     """
-    Public function to set network permission to 'true' and apply the change.
+    Enables network access for the specified container (requires recreation).
     """
     _set_network_permission(container_name, allow=True)
 
 
 def deny_network(container_name: str):
     """
-    Public function to set network permission to 'false' and apply the change.
+    Disables network access for the specified container (requires recreation).
     """
     _set_network_permission(container_name, allow=False)

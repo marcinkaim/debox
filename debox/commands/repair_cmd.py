@@ -10,11 +10,10 @@ from debox.core.log_utils import log_debug, run_step, console, log_info, log_err
 
 def repair_app(container_name: str):
     """
-    Performs a repair on an existing installation by:
-    1. Removing desktop integration.
-    2. Removing the container instance.
-    3. Creating a new container instance from the *existing* image.
-    4. Re-applying desktop integration.
+    Repairs the application container and desktop integration.
+    
+    Useful if the container was accidentally deleted or desktop shortcuts are broken.
+    Does not rebuild the image.
     """
     console.print(f"--- Repairing application: {container_name} ---", style="bold")
     

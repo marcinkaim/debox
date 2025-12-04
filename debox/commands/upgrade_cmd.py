@@ -5,9 +5,10 @@ from debox.core.log_utils import log_info, log_error, log_debug, log_warning, ru
 
 def upgrade_app(container_name: str):
     """
-    Performs an in-place upgrade of all packages in the container
-    and commits the result to the container image.
-    Uses spinners for long-running operations in silent mode.
+    Upgrade system packages inside the application container.
+
+    Runs 'apt-get update' and 'apt-get upgrade' inside the container, commits the
+    changes to the local image, and pushes the updated image to the registry.
     """
     log_info(f"--- Starting in-place upgrade for: {container_name} ---")
     

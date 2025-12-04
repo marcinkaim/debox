@@ -13,8 +13,10 @@ from debox.core.log_utils import log_debug, run_step, console, log_info, log_err
 
 def install_app(container_name: Optional[str], config_path: Optional[Path]):
     """
-    Orchestrates the installation based on provided arguments.
-    Validates if the app is already installed.
+    Orchestrates the installation process.
+    
+    Handles new installations from a config file and re-installations of existing
+    applications. Manages image building, container creation, and desktop integration.
     """
     log_debug(f"--- Starting install command ---")
     log_debug(f"Provided container_name: {container_name}")
