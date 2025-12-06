@@ -35,7 +35,7 @@ sudo apt install git pandoc dpkg-dev
 Clone the repository:
 
 ```bash
-git clone [https://github.com/YOUR_USERNAME/debox.git](https://github.com/YOUR_USERNAME/debox.git)
+git clone [https://github.com/marcinkaim/debox.git](https://github.com/marcinkaim/debox.git)
 cd debox
 ```
 
