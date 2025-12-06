@@ -402,4 +402,4 @@ def image_build(
     image_cmd.build_base_image(config_file)
 
 if __name__ == "__main__":
-    app()
+    app(prog_name="debox")
