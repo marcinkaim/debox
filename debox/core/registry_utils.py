@@ -26,9 +26,16 @@ def ensure_registry_running():
     status = podman_utils.get_container_status(registry_name)
     log_debug(f"Registry status: {status}")
     
-    if status == "Not Found":
-        log_error(f"Registry container '{registry_name}' not found.", exit_program=True)
-        print("   Please run 'debox system setup-registry' first.")
+    if "not found" in status.lower():
+        log_info(f"-> Registry container '{registry_name}' not found. Initializing environment...")
+        
+        from debox.commands import system_cmd
+        
+        try:
+            system_cmd.setup_registry()
+            status = podman_utils.get_container_status(registry_name)
+        except Exception as e:
+            log_error(f"Failed to auto-initialize registry: {e}", exit_program=True)
     
     needs_start = False
     if "running" in status.lower():
@@ -40,13 +47,15 @@ def ensure_registry_running():
             needs_start = True
         except Exception as e:
             log_error(f"Failed to start registry: {e}", exit_program=True)
+    else:
+         log_error(f"Registry container '{registry_name}' status is '{status}' after setup attempt.", exit_program=True)
     
     log_debug("-> Verifying registry is responsive...")
     registry_address = global_config.get_registry_address()
     api_url = f"http://{registry_address}/v2/"
     
     if needs_start:
-        time.sleep(1) # Daj mu 1s na start
+        time.sleep(1)
 
     for i in range(10):
         try:
@@ -56,7 +65,7 @@ def ensure_registry_running():
                 return True # Sukces
         except requests.ConnectionError:
             log_debug(f"   ... registry not ready yet (attempt {i+1}/10)")
-            pass # Jeszcze nie gotowe
+            pass
         except Exception as e:
             log_warning(f"Registry health check error: {e}")
             

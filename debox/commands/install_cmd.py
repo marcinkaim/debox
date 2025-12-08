@@ -93,6 +93,8 @@ def install_app(container_name: Optional[str], config_path: Optional[Path]):
     app_name = config.get('app_name', final_container_name)
     log_info(f"--- Installing application: {app_name} ({final_container_name}) ---")
 
+    registry_utils.ensure_registry_running()
+
     try:
         current_dir = Path(__file__).parent
         core_dir = current_dir.parent / "core"

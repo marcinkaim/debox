@@ -41,7 +41,7 @@ def setup_registry():
     global_config.save_global_config(config)
     
     registry_address = global_config.get_registry_address()
-    registry_port = config.get('registry', 'port', fallback=global_config.GLOBAL_REGISTRY_PORT)
+    registry_port = config.get('registry', 'port', fallback=global_config.DEFAULT_REGISTRY_PORT)
     log_info(f"-> Using registry address: {registry_address}")
 
     with run_step(
