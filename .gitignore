@@ -1,3 +1,7 @@
+# DEB package files
+*.deb
+*.deb.asc
+
 # --- Python Virtual Environment ---
 # This directory contains the isolated Python interpreter and libraries.
 # It should NEVER be committed to version control.
