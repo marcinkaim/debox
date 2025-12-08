@@ -34,6 +34,11 @@ def push_image(container_name: str):
          print("   Please build or install the application first.")
          return
     
+    try:
+        registry_utils.ensure_registry_running()
+    except Exception as e:
+        log_error(f"Failed to initialize registry: {e}", exit_program=True)
+
     image_digest = None
     with run_step(
         spinner_message=f"Pushing {image_tag_local}...",
@@ -403,6 +408,11 @@ def build_base_image(config_path: Path):
     Builds a shared base image from a configuration file and pushes it to the registry.
     """
     console.print(f"--- Building Base Image from: {config_path} ---", style="bold")
+
+    try:
+        registry_utils.ensure_registry_running()
+    except Exception as e:
+        log_error(f"Failed to initialize registry: {e}", exit_program=True)
 
     try:
         with open(config_path, 'r') as f:
