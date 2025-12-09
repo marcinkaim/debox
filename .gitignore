@@ -1,3 +1,5 @@
+.secrets
+
 # DEB package files
 *.deb
 *.deb.asc
