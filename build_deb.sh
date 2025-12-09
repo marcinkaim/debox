@@ -95,10 +95,10 @@ auto_bump_version() {
 
         # Update variable
         CURRENT_VERSION="$NEW_FULL_VER"
-    fi
 
-    # Autotag
-    git tag -s "v$CURRENT_VERSION" -m "Release $CURRENT_VERSION"
+        # Autotag
+        git tag -s "v$CURRENT_VERSION" -m "Release $CURRENT_VERSION"
+    fi
 }
 
 # --- Main Execution ---

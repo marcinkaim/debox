@@ -59,4 +59,4 @@ dch --newversion "$new_ver" --distribution trixie "$MSG"
 
 git add debian/changelog
 git commit -m "Bump version to $new_ver"
-# git tag -s "v$new_ver" -m "Release $new_ver"
+git tag -s "v$new_ver" -m "Release $new_ver"
