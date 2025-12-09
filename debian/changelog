@@ -1,0 +1,35 @@
+debox (0.2.1-1) trixie; urgency=medium
+
+  * Minor changes (Auto-bump during build).
+
+ -- Marcin Kaim <9829098+marcinkaim@users.noreply.github.com>  Tue, 09 Dec 2025 14:17:31 +0100
+
+debox (0.2.0-1) trixie; urgency=medium
+
+  * Improve package building
+
+ -- Marcin Kaim <9829098+marcinkaim@users.noreply.github.com>  Tue, 09 Dec 2025 14:17:06 +0100
+
+debox (0.1.3-1) trixie; urgency=medium
+
+  * Minor changes (Auto-bump during build).
+
+ -- Marcin Kaim <9829098+marcinkaim@users.noreply.github.com>  Tue, 09 Dec 2025 14:13:12 +0100
+
+debox (0.1.2-1) trixie; urgency=medium
+
+  * Minor changes (Auto-bump during build).
+
+ -- Marcin Kaim <9829098+marcinkaim@users.noreply.github.com>  Tue, 09 Dec 2025 14:10:20 +0100
+
+debox (0.1.1-1) trixie; urgency=medium
+
+  * Minor changes (Auto-bump during build).
+
+ -- Marcin Kaim <9829098+marcinkaim@users.noreply.github.com>  Tue, 09 Dec 2025 12:35:09 +0100
+
+debox (0.1.0-1) trixie; urgency=medium
+
+  * Initial release.
+
+ -- Marcin Kaim <9829098+marcinkaim@users.noreply.github.com>  Tue, 09 Dec 2025 12:35:09 +0100

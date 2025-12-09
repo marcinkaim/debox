@@ -4,16 +4,13 @@ set -e
 
 # --- Configuration ---
 APP_NAME="debox"
-VERSION="0.1.0"
+# VERSION is now dynamic, read from changelog
 ARCH="all"
-MAINTAINER="Marcin Kaim <9829098+marcinkaim@users.noreply.github.com>"
+# MAINTAINER is now dynamic, read from git
 DESC="Container manager for desktop applications on Debian"
 BUILD_DIR="build/debian"
 SOURCE_DIR="debox"
 DOCS_DIR="docs"
-
-# Define the output filename clearly
-DEB_FILENAME="${APP_NAME}_${VERSION}_${ARCH}.deb"
 
 # System dependencies (Debian Trixie)
 DEPENDS="python3, podman, python3-typer, python3-rich, python3-yaml, python3-requests, python3-pil"
@@ -21,12 +18,109 @@ DEPENDS="python3, podman, python3-typer, python3-rich, python3-yaml, python3-req
 # Colors
 GREEN="\033[0;32m"
 YELLOW="\033[0;33m"
+BLUE="\033[0;34m"
+RED="\033[0;31m"
 NC="\033[0m"
 
-echo -e "${YELLOW}--- Starting build of package ${DEB_FILENAME} ---${NC}"
+# --- Helper Functions ---
+
+setup_git_identity() {
+    # 1. Fetch identity from Git config for dch
+    echo "-> Configuring packaging identity..."
+    if [ -z "$DEBFULLNAME" ]; then
+        export DEBFULLNAME=$(git config user.name)
+    fi
+    if [ -z "$DEBEMAIL" ]; then
+        export DEBEMAIL=$(git config user.email)
+    fi
+
+    if [ -z "$DEBFULLNAME" ] || [ -z "$DEBEMAIL" ]; then
+        echo -e "${RED}Error: Git user.name or user.email not set. Cannot maintain changelog.${NC}"
+        exit 1
+    fi
+    echo "   Identity: $DEBFULLNAME <$DEBEMAIL>"
+}
+
+ensure_debian_structure() {
+    # 3. Create debian/changelog if missing
+    mkdir -p debian
+    
+    if [ ! -f "debian/changelog" ]; then
+        echo -e "${YELLOW}-> Initializing debian/changelog...${NC}"
+        # Start with 0.1.0-1 if not exists
+        dch --create --package "$APP_NAME" --newversion "0.1.0-1" --distribution trixie "Initial release."
+    fi
+}
+
+auto_bump_version() {
+    # 2. Check logic: Has anything changed since the last release mentioned in changelog?
+    # We compare HEAD with the commit hash of the last tag matching the version.
+    
+    CURRENT_VERSION=$(dpkg-parsechangelog -S Version)
+    # Assuming tags are named 'vX.Y.Z-R' or just 'vX.Y.Z'
+    # Since we don't have tags perfectly synced yet, we check if git is clean.
+    
+    if git diff-index --quiet HEAD --; then
+        echo -e "${BLUE}-> Repository is clean. Building version $CURRENT_VERSION.${NC}"
+    else
+        echo -e "${YELLOW}-> Changes detected in repository.${NC}"
+        echo "   Autobumping Patch Version (e.g. 0.1.2 -> 0.1.3)"
+        
+        # Determine increment strategy. 
+        # dch -i increments revision (1.0-1 -> 1.0-2). 
+        # To increment upstream version (1.0.1 -> 1.0.2), we need logic or use a helper.
+        # Here we use a simple patch bump approach using python or string manipulation would be better,
+        # but for simplicity, we rely on dch -v.
+        
+        # Let's extract upstream version
+        BASE_VER=$(echo "$CURRENT_VERSION" | cut -d- -f1)
+        REV=$(echo "$CURRENT_VERSION" | cut -d- -f2)
+        
+        # Split BASE_VER by dots
+        IFS='.' read -r -a PARTS <<< "$BASE_VER"
+        MAJOR=${PARTS[0]}
+        MINOR=${PARTS[1]}
+        PATCH=${PARTS[2]}
+        
+        NEW_PATCH=$((PATCH + 1))
+        NEW_UPSTREAM="${MAJOR}.${MINOR}.${NEW_PATCH}"
+        NEW_FULL_VER="${NEW_UPSTREAM}-1"
+        
+        echo "   Bumping to $NEW_FULL_VER"
+        
+        dch --newversion "$NEW_FULL_VER" --distribution trixie "Minor changes (Auto-bump during build)."
+
+        git add debian/changelog
+        git commit -m "Bump version to $NEW_FULL_VER"
+
+        # Update variable
+        CURRENT_VERSION="$NEW_FULL_VER"
+    fi
+
+    # Autotag
+    git tag -s "v$CURRENT_VERSION" -m "Release $CURRENT_VERSION"
+}
+
+# --- Main Execution ---
+
+echo -e "${YELLOW}--- Starting Debox Build Process ---${NC}"
+
+# Check for required tools
+command -v dch >/dev/null 2>&1 || { echo -e "${RED}Error: 'devscripts' package (dch) is missing.${NC}"; exit 1; }
+command -v dpkg-parsechangelog >/dev/null 2>&1 || { echo -e "${RED}Error: 'dpkg-dev' package is missing.${NC}"; exit 1; }
+
+setup_git_identity
+ensure_debian_structure
+auto_bump_version
+
+# Read the final version from changelog (in case it was bumped)
+VERSION=$(dpkg-parsechangelog -S Version)
+DEB_FILENAME="${APP_NAME}_${VERSION}_${ARCH}.deb"
+
+echo -e "${BLUE}-> Building Version: ${VERSION}${NC}"
 
 # 1. Prepare clean build directory
-echo "-> Cleaning build directory..."
+echo "-> Preparing build directory..."
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR/DEBIAN"
 mkdir -p "$BUILD_DIR/usr/bin"
@@ -34,16 +128,26 @@ mkdir -p "$BUILD_DIR/usr/lib/$APP_NAME"
 mkdir -p "$BUILD_DIR/usr/share/man/man1"
 mkdir -p "$BUILD_DIR/usr/share/man/man5"
 
-# 2. Generate control file
-echo "-> Generating DEBIAN/control file..."
+# 2. Generate Binary Control File
+# Instead of copying and mutating the source control file (which has multiple stanzas),
+# we generate a clean binary control file specifically for dpkg-deb.
+# This ensures strict adherence to binary package format (single stanza, starting with Package).
+
+echo "-> Generating binary control file at $BUILD_DIR/DEBIAN/control..."
+
+# We need to grab Section and Priority from variables or hardcode them if they match source.
+# Based on your source control file:
+SECTION="utils"
+PRIORITY="optional"
+
 cat <<EOF > "$BUILD_DIR/DEBIAN/control"
 Package: $APP_NAME
 Version: $VERSION
-Section: utils
-Priority: optional
 Architecture: $ARCH
+Maintainer: $DEBFULLNAME <$DEBEMAIL>
 Depends: $DEPENDS
-Maintainer: $MAINTAINER
+Section: $SECTION
+Priority: $PRIORITY
 Description: $DESC
  Debox allows you to run desktop applications in isolated Podman containers
  with seamless integration (icons, mime types). It manages the container lifecycle,

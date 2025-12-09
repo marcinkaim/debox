@@ -24,3 +24,5 @@ image:
     - "libgtk-3-0"
     - "libasound2"
     - "podman"
+    - "devscripts"
+    - "dpkg-dev"
