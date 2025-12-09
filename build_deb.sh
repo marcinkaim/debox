@@ -4,9 +4,7 @@ set -e
 
 # --- Configuration ---
 APP_NAME="debox"
-# VERSION is now dynamic, read from changelog
 ARCH="all"
-# MAINTAINER is now dynamic, read from git
 DESC="Container manager for desktop applications on Debian"
 BUILD_DIR="build/debian"
 SOURCE_DIR="debox"
@@ -25,7 +23,6 @@ NC="\033[0m"
 # --- Helper Functions ---
 
 setup_git_identity() {
-    # 1. Fetch identity from Git config for dch
     echo "-> Configuring packaging identity..."
     if [ -z "$DEBFULLNAME" ]; then
         export DEBFULLNAME=$(git config user.name)
@@ -42,63 +39,69 @@ setup_git_identity() {
 }
 
 ensure_debian_structure() {
-    # 3. Create debian/changelog if missing
     mkdir -p debian
     
     if [ ! -f "debian/changelog" ]; then
         echo -e "${YELLOW}-> Initializing debian/changelog...${NC}"
-        # Start with 0.1.0-1 if not exists
         dch --create --package "$APP_NAME" --newversion "0.1.0-1" --distribution trixie "Initial release."
     fi
 }
 
 auto_bump_version() {
-    # 2. Check logic: Has anything changed since the last release mentioned in changelog?
-    # We compare HEAD with the commit hash of the last tag matching the version.
+    # Condition A: Repository MUST be clean (no uncommitted changes).
+    # Condition B: HEAD must NOT be tagged already.
     
-    CURRENT_VERSION=$(dpkg-parsechangelog -S Version)
-    # Assuming tags are named 'vX.Y.Z-R' or just 'vX.Y.Z'
-    # Since we don't have tags perfectly synced yet, we check if git is clean.
-    
-    if git diff-index --quiet HEAD --; then
-        echo -e "${BLUE}-> Repository is clean. Building version $CURRENT_VERSION.${NC}"
-    else
-        echo -e "${YELLOW}-> Changes detected in repository.${NC}"
-        echo "   Autobumping Patch Version (e.g. 0.1.2 -> 0.1.3)"
-        
-        # Determine increment strategy. 
-        # dch -i increments revision (1.0-1 -> 1.0-2). 
-        # To increment upstream version (1.0.1 -> 1.0.2), we need logic or use a helper.
-        # Here we use a simple patch bump approach using python or string manipulation would be better,
-        # but for simplicity, we rely on dch -v.
-        
-        # Let's extract upstream version
-        BASE_VER=$(echo "$CURRENT_VERSION" | cut -d- -f1)
-        REV=$(echo "$CURRENT_VERSION" | cut -d- -f2)
-        
-        # Split BASE_VER by dots
-        IFS='.' read -r -a PARTS <<< "$BASE_VER"
-        MAJOR=${PARTS[0]}
-        MINOR=${PARTS[1]}
-        PATCH=${PARTS[2]}
-        
-        NEW_PATCH=$((PATCH + 1))
-        NEW_UPSTREAM="${MAJOR}.${MINOR}.${NEW_PATCH}"
-        NEW_FULL_VER="${NEW_UPSTREAM}-1"
-        
-        echo "   Bumping to $NEW_FULL_VER"
-        
-        dch --newversion "$NEW_FULL_VER" --distribution trixie "Minor changes (Auto-bump during build)."
+    echo "-> Checking repository state for auto-bump..."
 
-        git add debian/changelog
-        git commit -m "Bump version to $NEW_FULL_VER"
-
-        # Update variable
-        CURRENT_VERSION="$NEW_FULL_VER"
-
-        # Autotag
-        git tag -s "v$CURRENT_VERSION" -m "Release $CURRENT_VERSION"
+    # Check A: Is Repo Dirty?
+    # git diff-index --quiet HEAD returns 1 if there are changes, 0 if clean.
+    if ! git diff-index --quiet HEAD --; then
+        echo -e "${YELLOW}WARNING: Repository has uncommitted changes.${NC}"
+        echo "   Skipping auto-bump and tagging to ensure reproducibility."
+        echo "   Building package based on current debian/changelog state."
+        return
     fi
+
+    # Check B: Is HEAD tagged?
+    # git describe --exact-match fails if no tag points exactly to HEAD.
+    if git describe --exact-match --tags HEAD >/dev/null 2>&1; then
+        CURRENT_TAG=$(git describe --exact-match --tags HEAD)
+        echo -e "${BLUE}-> Commit is already tagged ($CURRENT_TAG).${NC}"
+        echo "   Skipping bump. Building existing release."
+        return
+    fi
+
+    # If we are here: Clean AND Untagged -> PROCEED TO BUMP
+    echo -e "${BLUE}-> Repository is clean and untagged. Proceeding with release bump.${NC}"
+
+    CURRENT_VERSION=$(dpkg-parsechangelog -S Version)
+    
+    # Extract upstream version parts
+    BASE_VER=$(echo "$CURRENT_VERSION" | cut -d- -f1)
+    # Parse Major.Minor.Patch
+    IFS='.' read -r -a PARTS <<< "$BASE_VER"
+    MAJOR=${PARTS[0]}
+    MINOR=${PARTS[1]}
+    PATCH=${PARTS[2]}
+    
+    # Increment Patch
+    NEW_PATCH=$((PATCH + 1))
+    NEW_UPSTREAM="${MAJOR}.${MINOR}.${NEW_PATCH}"
+    NEW_FULL_VER="${NEW_UPSTREAM}-1"
+    
+    echo "   Bumping version: $CURRENT_VERSION -> $NEW_FULL_VER"
+    
+    # Update changelog
+    dch --newversion "$NEW_FULL_VER" --distribution trixie "Minor changes (Auto-bump during build)."
+
+    # Commit the changelog bump
+    # Note: We are modifying the repo here, so it becomes dirty for a split second until we commit.
+    git add debian/changelog
+    git commit -m "Bump version to $NEW_FULL_VER"
+
+    # Tag the release
+    echo "   Tagging release v$NEW_FULL_VER..."
+    git tag -s "v$NEW_FULL_VER" -m "Release $NEW_FULL_VER"
 }
 
 # --- Main Execution ---
