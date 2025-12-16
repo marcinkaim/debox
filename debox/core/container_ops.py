@@ -268,12 +268,20 @@ def _generate_podman_flags(config: dict) -> list[str]:
              if os.environ.get(var): flags.extend(["-e", var])
 
         xauth_path = os.environ.get("XAUTHORITY", os.path.expanduser("~/.Xauthority"))
-        
+        xdg_runtime_dir = os.environ.get("XDG_RUNTIME_DIR")
+
+        is_dynamic_xauth = False
+        if xdg_runtime_dir and xauth_path.startswith(xdg_runtime_dir):
+            is_dynamic_xauth = True
+
         if Path(xauth_path).is_file():
-            container_xauth_path = "/tmp/.Xauthority"
-            flags.extend(["-v", f"{xauth_path}:{container_xauth_path}:ro"])
-            flags.extend(["-e", f"XAUTHORITY={container_xauth_path}"])
-            log_debug(f"     - X11 Auth: Mounted {xauth_path} -> {container_xauth_path}")
+            if is_dynamic_xauth:
+                log_debug(f"     - X11 Auth: Dynamic ({xauth_path}). Relying on XDG_RUNTIME_DIR mount.")
+            else:
+                container_xauth_path = "/tmp/.Xauthority"
+                flags.extend(["-v", f"{xauth_path}:{container_xauth_path}:ro"])
+                flags.extend(["-e", f"XAUTHORITY={container_xauth_path}"])
+                log_debug(f"     - X11 Auth: Mounted {xauth_path} -> {container_xauth_path}")
         else:
             log_debug(f"     - X11 Auth: File not found at {xauth_path}. X11 apps might fail.")
         

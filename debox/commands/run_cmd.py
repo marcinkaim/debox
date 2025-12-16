@@ -71,6 +71,10 @@ def run_app(container_name: str, app_command_and_args: list[str]):
 
         podman_exec_flags = ["--user", host_user]
 
+        current_xauth = os.environ.get("XAUTHORITY")
+        if current_xauth:
+            podman_exec_flags.extend(["-e", f"XAUTHORITY={current_xauth}"])
+
         is_interactive = runtime_cfg.get('interactive', False)
         
         if is_interactive and sys.stdin.isatty() and sys.stdout.isatty():
