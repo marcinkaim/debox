@@ -1,3 +1,9 @@
+debox (0.3.3-1) trixie; urgency=medium
+
+  * Minor changes (Auto-bump during build).
+
+ -- Marcin Kaim <9829098+marcinkaim@users.noreply.github.com>  Tue, 16 Dec 2025 12:23:34 +0100
+
 debox (0.3.2-1) trixie; urgency=medium
 
   * Minor changes (Auto-bump during build).
