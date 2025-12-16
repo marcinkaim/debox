@@ -13,7 +13,7 @@ all: build
 # 1. Build the package (includes auto-bump and signing)
 build:
 	@echo "--- 🔨 Building Package ---"
-	@bash ./build_deb.sh
+	@bash $(SCRIPTS_DIR)/build_deb.sh
 
 # 2. Sync git repository (push commits and tags)
 push:
