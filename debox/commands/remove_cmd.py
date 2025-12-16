@@ -3,7 +3,7 @@
 import shutil
 
 from debox.commands import image_cmd
-from debox.core import container_ops, hash_utils, podman_utils
+from debox.core import container_ops, gpg_utils, hash_utils, podman_utils
 from debox.core import desktop_integration
 from debox.core import config_utils
 from debox.core.log_utils import log_debug, log_error, log_info, log_warning, run_step, console
@@ -43,6 +43,14 @@ def remove_app(container_name: str, purge_home: bool):
             log_warning(f"Configuration file not found. Cleanup may be partial.")
     except Exception as e:
         log_warning(f"Could not load configuration file. Cleanup may be partial. Error: {e}")
+
+    with run_step(
+        spinner_message="Removing security contexts...",
+        success_message="-> Security contexts cleaned up.",
+        error_message="Error removing security contexts",
+        fatal=False
+    ):
+        gpg_utils.remove_gpg_context(container_name)
 
     with run_step(
         spinner_message="Removing desktop integration...",

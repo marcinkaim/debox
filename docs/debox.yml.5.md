@@ -137,6 +137,14 @@ Controls container security and hardware access.
 **devices** (list of strings, optional)
 :   List of specific device paths to pass to the container (e.g., ["/dev/bus/usb/001/002"]).
 
+## Security Section (security)
+
+Controls cryptographic identity and isolation.
+
+**gpg_key_id** (string, optional)
+:   The ID (hash) of a GPG key residing on the host. If specified, this key (public and secret) is exported to a strictly isolated temporary keyring and mounted into the container at `~/.gnupg`.
+:   This allows signing commits (e.g., in VS Code) without exposing the entire host keyring.
+
 # EXAMPLES
 
 A simple CLI tool:

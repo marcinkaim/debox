@@ -10,7 +10,7 @@ import os
 import locale
 import getpass
 
-from debox.core import registry_utils
+from debox.core import gpg_utils, registry_utils
 from debox.core.log_utils import log_debug, log_error, log_warning
 from . import podman_utils
 from . import config_utils
@@ -332,6 +332,30 @@ def _generate_podman_flags(config: dict) -> list[str]:
                 log_warning(f"     - Invalid volume format: '{volume}'. Skipping.")
     else:
         log_debug("     - Additional Volumes: None")
+
+    # --- Security / GPG Section ---
+    security_cfg = config.get('security', {})
+    gpg_key_id = security_cfg.get('gpg_key_id')
+    
+    if gpg_key_id:
+        log_debug("   Applying Security settings:")
+        gpg_context_path = gpg_utils.get_gpg_context_dir(container_name)
+        
+        if gpg_context_path.is_dir():
+            # Mount as ~/.gnupg for the user inside container
+            # Since we use --userns=keep-id, the user inside is the same as outside
+            # Assuming standard home location /home/$USER
+            import getpass
+            container_user_home = f"/home/{getpass.getuser()}"
+            container_gpg_path = f"{container_user_home}/.gnupg"
+            
+            # Use :Z to allow SELinux/AppArmor access if needed, strict mapping
+            mount_flag = f"{gpg_context_path}:{container_gpg_path}:Z"
+            flags.extend(["-v", mount_flag])
+            
+            log_debug(f"     - GPG Context: Mounted isolated keyring for key {gpg_key_id}")
+        else:
+            log_warning(f"     - GPG Context configured but directory missing: {gpg_context_path}")
 
     log_debug("-> Finished applying configuration flags.")
     return flags

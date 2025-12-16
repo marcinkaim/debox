@@ -13,7 +13,7 @@ from typing import Dict, Any, Optional
 from debox.core.log_utils import log_debug, log_error, log_warning
 
 # Define the sections we care about hashing
-SECTIONS_TO_HASH = ['image', 'storage', 'runtime', 'integration', 'permissions']
+SECTIONS_TO_HASH = ['image', 'storage', 'runtime', 'integration', 'permissions', 'security']
 
 # --- Constants for state files ---
 STATE_FILE_NAME = ".last_applied_state.json"
@@ -47,7 +47,7 @@ def calculate_hashes(config: dict) -> Dict[str, str]:
     """
     hashes = {}
     
-    for section in ['image', 'storage', 'runtime', 'permissions']:
+    for section in ['image', 'storage', 'runtime', 'permissions', 'security']:
         hashes[section] = _calculate_section_hash(config.get(section, {}))
     
     int_conf = config.get('integration', {})

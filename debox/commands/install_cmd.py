@@ -5,7 +5,7 @@ from pathlib import Path
 import os
 from typing import Optional
 
-from debox.core import config_utils, podman_utils, registry_utils
+from debox.core import config_utils, gpg_utils, podman_utils, registry_utils
 from debox.core import desktop_integration
 from debox.core import container_ops
 from debox.core import hash_utils
@@ -156,6 +156,7 @@ def install_app(container_name: Optional[str], config_path: Optional[Path]):
             log_debug(f"Warning: Could not cleanup old image: {e}")
 
     with run_step(f"Creating container '{final_container_name}'...", "-> Container created successfully.", "Error creating container"):
+        gpg_utils.setup_gpg_context(final_container_name, config)
         container_ops.create_container_instance(config, image_tag)
     
     with run_step("Applying desktop integration...", "-> Desktop integration applied.", "Error during desktop integration"):

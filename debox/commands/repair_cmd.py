@@ -1,7 +1,7 @@
 # debox/commands/repair_cmd.py
 
 
-from debox.core import podman_utils
+from debox.core import gpg_utils, podman_utils
 from debox.core import hash_utils
 from debox.core import container_ops
 from debox.core import desktop_integration
@@ -48,12 +48,14 @@ def repair_app(container_name: str):
             error_message="Error removing container instance"
         ):
             container_ops.remove_container_instance(container_name)
+            gpg_utils.remove_gpg_context(container_name)
 
         with run_step(
             spinner_message="Creating new container instance...",
             success_message="-> Container instance created.",
             error_message="Error creating container instance"
         ):
+            gpg_utils.setup_gpg_context(container_name, config)
             container_ops.create_container_instance(config, image_tag)
 
         with run_step(

@@ -3,7 +3,7 @@
 import shutil
 from pathlib import Path
 
-from debox.core import config_utils, registry_utils
+from debox.core import config_utils, gpg_utils, registry_utils
 from debox.core import hash_utils
 from debox.core import container_ops
 from debox.core import desktop_integration
@@ -46,9 +46,10 @@ def apply_changes(container_name: str):
         permissions_changed = (current_hashes['permissions'] != saved_hashes.get('permissions'))
         integration_any_changed = (current_hashes['integration'] != saved_hashes.get('integration'))
         integration_critical_changed = (current_hashes['integration_critical'] != saved_hashes.get('integration_critical'))
+        security_changed = (current_hashes['security'] != saved_hashes.get('security'))
 
         do_rebuild = image_changed
-        do_recreate = do_rebuild or storage_changed or runtime_changed or permissions_changed or integration_critical_changed
+        do_recreate = do_rebuild or storage_changed or runtime_changed or permissions_changed or integration_critical_changed or security_changed
         do_reintegrate = do_recreate or integration_any_changed
 
         if not do_rebuild and not do_recreate and not do_reintegrate: # This implicitly covers 'no changes'
@@ -78,6 +79,7 @@ def apply_changes(container_name: str):
                 error_message="Error removing container instance"
             ):
                 container_ops.remove_container_instance(container_name)
+                gpg_utils.remove_gpg_context(container_name)
 
         # 3c. Rebuild image (if needed)
         image_tag = f"localhost/{container_name}:latest" # Default tag
@@ -121,6 +123,7 @@ def apply_changes(container_name: str):
                 success_message="-> Container instance created.",
                 error_message="Error creating container instance"
             ):
+                gpg_utils.setup_gpg_context(container_name, current_config)
                 container_ops.create_container_instance(current_config, image_tag)
 
         # 3e. Add new desktop integration

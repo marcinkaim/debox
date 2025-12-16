@@ -11,6 +11,7 @@ from debox.core.log_utils import log_debug, log_error
 DEBOX_APPS_DIR = Path(os.path.expanduser("~/.config/debox/apps"))
 DEBOX_IMAGES_DIR = Path(os.path.expanduser("~/.config/debox/images"))
 DEBOX_HOMES_DIR = Path(os.path.expanduser("~/.local/share/debox/homes"))
+DEBOX_SECURITY_DIR = Path(os.path.expanduser("~/.local/share/debox/security"))
 DESKTOP_FILES_DIR = Path(os.path.expanduser("~/.local/share/applications"))
 
 def load_config(config_path: Path) -> dict:
