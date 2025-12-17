@@ -23,6 +23,8 @@ runtime:
   default_exec: "code"
   environment:
     CONTAINER_HOST: "unix:///run/user/1000/podman/podman.sock"
+    # GIT_USER_NAME: ""
+    # GIT_USER_EMAIL: ""
   prepend_exec_args:
     - "--ozone-platform=wayland"
     - "--wait"
@@ -45,3 +47,22 @@ permissions:
   printers: false
   system_dbus: true
   devices: []
+
+# security:
+#   gpg_key_id: ""
+
+# lifecycle:
+#   post_install: |
+#     # Git configuration
+#     git config --global user.name "$GIT_USER_NAME"
+#     git config --global user.email "$GIT_USER_EMAIL"
+    
+#     # Signing configuration (if key exists)
+#     if [ -n "$DEBOX_GPG_KEY_ID" ]; then
+#         git config --global user.signingkey "$DEBOX_GPG_KEY_ID"
+#         git config --global commit.gpgsign true
+#         echo "Git GPG signing enabled for key $DEBOX_GPG_KEY_ID"
+#     else
+#         git config --global commit.gpgsign false
+#         echo "Git GPG signing disabled (no key provided)"
+#     fi

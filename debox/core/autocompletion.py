@@ -43,6 +43,8 @@ VALID_CONFIG_KEYS = [
     "permissions.sound", "permissions.webcam", "permissions.microphone",
     "permissions.printers", "permissions.system_dbus", "permissions.host_opener",
     "permissions.devices",
+    "security.gpg_key_id",
+    "lifecycle.post_install",
 ]
 
 BOOLEAN_KEYS = [

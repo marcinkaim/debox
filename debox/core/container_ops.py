@@ -339,6 +339,10 @@ def _generate_podman_flags(config: dict) -> list[str]:
     
     if gpg_key_id:
         log_debug("   Applying Security settings:")
+
+        flags.extend(["-e", f"DEBOX_GPG_KEY_ID={gpg_key_id}"])
+        log_debug(f"     - Env: Injected DEBOX_GPG_KEY_ID={gpg_key_id}")
+        
         gpg_context_path = gpg_utils.get_gpg_context_dir(container_name)
         
         if gpg_context_path.is_dir():

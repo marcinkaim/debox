@@ -3,7 +3,7 @@
 import shutil
 from pathlib import Path
 
-from debox.core import config_utils, gpg_utils, registry_utils
+from debox.core import config_utils, gpg_utils, lifecycle, registry_utils
 from debox.core import hash_utils
 from debox.core import container_ops
 from debox.core import desktop_integration
@@ -125,6 +125,8 @@ def apply_changes(container_name: str):
             ):
                 gpg_utils.setup_gpg_context(container_name, current_config)
                 container_ops.create_container_instance(current_config, image_tag)
+
+            lifecycle.run_post_install_hooks(container_name, current_config)
 
         # 3e. Add new desktop integration
         if do_reintegrate:

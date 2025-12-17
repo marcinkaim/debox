@@ -145,6 +145,18 @@ Controls cryptographic identity and isolation.
 :   The ID (hash) of a GPG key residing on the host. If specified, this key (public and secret) is exported to a strictly isolated temporary keyring and mounted into the container at `~/.gnupg`.
 :   This allows signing commits (e.g., in VS Code) without exposing the entire host keyring.
 
+## Lifecycle Section (lifecycle)
+
+Controls scripts executed at specific points in the container's lifecycle.
+
+**post_install** (string, optional)
+:   A shell script (Bash) to be executed inside the container immediately after it is created and desktop integration is applied.
+:   Useful for instance-specific configuration that should not be baked into the image (e.g., setting global Git user config, installing VS Code extensions, cloning specific repositories).
+:   The script is executed as the container's default user.
+
+**Implicit Environment Variables**
+:   If a GPG key is defined in the `security` section, Debox automatically injects the `DEBOX_GPG_KEY_ID` environment variable into the container. This variable is available during the `post_install` hook and normal runtime, facilitating automated GPG configuration scripts.
+
 # EXAMPLES
 
 A simple CLI tool:
@@ -157,13 +169,33 @@ image:
   base: "localhost/debox-base-minimal:latest"
   packages: ["mc"]
 storage:
-  volumes: ["~:/home/marcin/HostHome"]
+  volumes: ["~:/home/user1/HostHome"]
 runtime:
   default_exec: "mc"
   interactive: true
 integration:
   desktop_integration: false
   aliases: {"mc": "mc-debox"}
+```
+
+VS Code with automated Git identity setup:
+
+```yaml
+version: 1
+app_name: "VS Code (Project X)"
+container_name: "debox-vscode-projx"
+image:
+  base: "localhost:5000/debox-base-vscode:latest"
+security:
+  gpg_key_id: "0123456789ABCDEF..."
+lifecycle:
+  post_install: |
+    git config --global user.name "User1"
+    git config --global user.email "user1@example.com"
+    if [ -n "$DEBOX_GPG_KEY_ID" ]; then
+      git config --global user.signingkey "$DEBOX_GPG_KEY_ID"
+      git config --global commit.gpgsign true
+    fi
 ```
 
 # SEE ALSO
