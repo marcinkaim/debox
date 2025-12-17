@@ -176,15 +176,25 @@ chmod 755 "$BUILD_DIR/usr/bin/$APP_NAME"
 if command -v pandoc >/dev/null 2>&1; then
     echo "-> Generating man pages..."
 
+    MAN_DATE=$(LC_ALL=C date '+%B %Y')
+
     if [ -f "$DOCS_DIR/${APP_NAME}.1.md" ]; then
         echo "   -> debox.1"
-        pandoc "$DOCS_DIR/${APP_NAME}.1.md" -s -t man -o "$BUILD_DIR/usr/share/man/man1/${APP_NAME}.1"
+        pandoc "$DOCS_DIR/${APP_NAME}.1.md" -s -t man \
+            -V footer="Debox $VERSION" \
+            -V date="$MAN_DATE" \
+            -o "$BUILD_DIR/usr/share/man/man1/${APP_NAME}.1"
+        
         gzip -f "$BUILD_DIR/usr/share/man/man1/${APP_NAME}.1"
     fi
 
     if [ -f "$DOCS_DIR/${APP_NAME}.yml.5.md" ]; then
         echo "   -> debox.yml.5"
-        pandoc "$DOCS_DIR/${APP_NAME}.yml.5.md" -s -t man -o "$BUILD_DIR/usr/share/man/man5/${APP_NAME}.yml.5"
+        pandoc "$DOCS_DIR/${APP_NAME}.yml.5.md" -s -t man \
+            -V footer="Debox $VERSION" \
+            -V date="$MAN_DATE" \
+            -o "$BUILD_DIR/usr/share/man/man5/${APP_NAME}.yml.5"
+        
         gzip -f "$BUILD_DIR/usr/share/man/man5/${APP_NAME}.yml.5"
     fi
 else
