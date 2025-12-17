@@ -94,6 +94,10 @@ auto_bump_version() {
     # Update changelog
     dch --newversion "$NEW_FULL_VER" --distribution trixie "Minor changes (Auto-bump during build)."
 
+    echo "   Updating README.md to version $NEW_FULL_VER..."
+    sed -i "s/debox_[0-9]\+\.[0-9]\+\.[0-9]\+\(-[0-9]\+\)\?_all\.deb/debox_${NEW_FULL_VER}_all.deb/g" README.md
+    git add README.md
+
     # Commit the changelog bump
     # Note: We are modifying the repo here, so it becomes dirty for a split second until we commit.
     git add debian/changelog

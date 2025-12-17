@@ -57,6 +57,10 @@ esac
 echo "Bumping version: $current_ver -> $new_ver"
 dch --newversion "$new_ver" --distribution trixie "$MSG"
 
+echo "   Updating README.md to version $new_ver..."
+sed -i "s/debox_[0-9]\+\.[0-9]\+\.[0-9]\+\(-[0-9]\+\)\?_all\.deb/debox_${new_ver}_all.deb/g" README.md
+git add README.md
+
 git add debian/changelog
 git commit -m "Bump version to $new_ver"
 git tag -s "v$new_ver" -m "Release $new_ver"
