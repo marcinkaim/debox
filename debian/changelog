@@ -1,3 +1,9 @@
+debox (0.5.1-1) trixie; urgency=medium
+
+  * Added package name autoupdate in README.md
+
+ -- Marcin Kaim <9829098+marcinkaim@users.noreply.github.com>  Wed, 17 Dec 2025 15:29:49 +0000
+
 debox (0.5.0-1) trixie; urgency=medium
 
   * Added support for post_install scripts
