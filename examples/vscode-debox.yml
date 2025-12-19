@@ -1,7 +1,7 @@
 # examples/vscode-debox.yml
 version: 1
 app_name: "VS Code (Debox Dev)"
-container_name: "debox-vscode-python"
+container_name: "debox-vscode-debox"
 
 image:
   base: "localhost:5000/debox-base-vscode:latest"
@@ -33,7 +33,7 @@ runtime:
 integration:
   desktop_integration: true
   aliases:
-    "code-debox": "code-debox"
+    "code": "code-debox"
   skip_categories:
     - "TerminalEmulator"
     - "System"

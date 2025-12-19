@@ -30,7 +30,7 @@ runtime:
 integration:
   desktop_integration: true
   aliases:
-    "code-lisp": "code-lisp"
+    "code": "code-lisp"
   skip_categories:
     - "TerminalEmulator"
     - "System"

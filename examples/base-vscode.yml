@@ -26,3 +26,5 @@ image:
     - "podman"
     - "devscripts"
     - "dpkg-dev"
+    - "jq"
+    - "pandoc"
