@@ -126,6 +126,9 @@ DEB_FILENAME="${APP_NAME}_${VERSION}_${ARCH}.deb"
 
 echo -e "${BLUE}-> Building Version: ${VERSION}${NC}"
 
+echo "-> Cleaning up old artifacts..."
+rm -f *.deb *.asc
+
 # 1. Prepare clean build directory
 echo "-> Preparing build directory..."
 rm -rf "$BUILD_DIR"

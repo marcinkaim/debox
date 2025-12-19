@@ -1,14 +1,20 @@
 # Makefile for Debox
 # Wrapper around build and release scripts
 
-.PHONY: all build push release clean install
-
+.PHONY: all build push release clean install bump
 APP_NAME = debox
 BUILD_DIR = build
 SCRIPTS_DIR = scripts
 
 # Default target
 all: build
+
+# 0. Bump version manually
+# Usage: make bump TYPE=minor MSG="Feature release"
+# Types: patch, minor, major, rel
+bump:
+	@echo "--- 🆙 Bumping Version ---"
+	@bash $(SCRIPTS_DIR)/bump_version.sh $(TYPE) "$(MSG)"
 
 # 1. Build the package (includes auto-bump and signing)
 build:
