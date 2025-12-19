@@ -215,6 +215,39 @@ Defines volume mounts.
 
 Booleans to enable/disable access: `network`, `gpu`, `sound`, `webcam`, `microphone`, `bluetooth`, `printers`, `host_opener`.
 
+`security`
+Controls cryptographic identity and isolation.
+
+- `gpg_key_id`: The ID of a GPG key residing on the host. If specified, this key (public and secret) is exported to a strictly isolated temporary keyring mounted at `~/.gnupg` inside the container.
+
+`lifecycle`
+Controls scripts executed at specific points in the container's lifecycle.
+
+- `post_install`: A shell script (Bash) to be executed inside the container immediately after it is created and desktop integration is applied. Useful for instance-specific configuration (e.g., git config, installing extensions).
+
+### Examples
+
+VS Code with automated Git identity setup:
+
+```yaml
+version: 1
+app_name: "VS Code (Project X)"
+container_name: "debox-vscode-projx"
+image:
+  base: "localhost:5000/debox-base-vscode:latest"
+security:
+  gpg_key_id: "0123456789ABCDEF..."
+lifecycle:
+  post_install: |
+    git config --global user.name "User1"
+    git config --global user.email "user1@example.com"
+    # DEBOX_GPG_KEY_ID is automatically injected if security.gpg_key_id is set
+    if [ -n "$DEBOX_GPG_KEY_ID" ]; then
+      git config --global user.signingkey "$DEBOX_GPG_KEY_ID"
+      git config --global commit.gpgsign true
+    fi
+```
+
 ## ⚖️ License
 
 MIT License. See LICENSE file for details.
