@@ -30,7 +30,7 @@ DEB_FILENAME="debox_${VERSION}_${ARCH}.deb"
 ASC_FILENAME="${DEB_FILENAME}.asc"
 
 RELEASE_TITLE="Release ${VERSION}"
-RELEASE_BODY="Auto-generated release for version ${VERSION}.\n\nIntegrity verification:\n\`gpg --verify ${ASC_FILENAME} ${DEB_FILENAME}\`"
+RELEASE_BODY=$(printf "Auto-generated release for version %s.\n\nIntegrity verification:\n\`gpg --verify %s %s\`" "${VERSION}" "${ASC_FILENAME}" "${DEB_FILENAME}")
 
 # API Config
 API_URL="https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/releases"
