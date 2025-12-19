@@ -176,7 +176,13 @@ exec python3 -m debox.cli "\$@"
 EOF
 chmod 755 "$BUILD_DIR/usr/bin/$APP_NAME"
 
-# 5. Generate Manual (Man Pages)
+# 5. Copy the profile script
+mkdir -p "$BUILD_DIR/etc/profile.d"
+echo "-> Installing /etc/profile.d/debox.sh..."
+cp "scripts/debox.sh" "$BUILD_DIR/etc/profile.d/"
+chmod 644 "$BUILD_DIR/etc/profile.d/debox.sh"
+
+# 6. Generate Manual (Man Pages)
 if command -v pandoc >/dev/null 2>&1; then
     echo "-> Generating man pages..."
 
@@ -205,11 +211,11 @@ else
     echo "   WARNING: 'pandoc' is not installed. Skipping man page generation."
 fi
 
-# 6. Build package
+# 7. Build package
 echo "-> Building .deb package..."
 dpkg-deb --build "$BUILD_DIR" "$DEB_FILENAME"
 
-# 7. Sign package (GPG)
+# 8. Sign package (GPG)
 echo "-> Signing package with GPG..."
 if command -v gpg >/dev/null 2>&1; then
     # Try to get the signing key from git config

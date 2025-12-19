@@ -190,9 +190,13 @@ def add_desktop_integration(config: dict):
                             command_name_only = Path(original_base_command).name 
                             alias_name = alias_map.get(command_name_only, command_name_only)
 
-                            # Construct the new Exec line using the alias + original args
-                            new_exec_parts = [alias_name] + original_args
-                            section['Exec'] = " ".join(shlex.quote(part) for part in new_exec_parts) # Rejoin safely
+                            # Construct the new Exec line using the ABSOLUTE PATH to the alias
+                            # This bypasses the need for ~/.local/bin to be in $PATH immediately
+                            local_bin_dir = Path(os.path.expanduser("~/.local/bin"))
+                            alias_path_str = str(local_bin_dir / alias_name)
+
+                            new_exec_parts = [alias_path_str] + original_args
+                            section['Exec'] = " ".join(shlex.quote(part) for part in new_exec_parts)
 
                         except Exception as e:
                             log_warning(f"--> Could not parse/modify Exec='{original_exec}' in section [{section_name}] of {original_filename}: {e}")
