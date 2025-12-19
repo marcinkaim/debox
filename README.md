@@ -45,7 +45,7 @@ Run the build script:
 ./build_deb.sh
 ```
 
-Upon success, the package `debox_0.5.4-1_all.deb` will be created in the project root directory.
+Upon success, the package `debox_0.5.5-1_all.deb` will be created in the project root directory.
 
 ## 🚀 Installation
 
@@ -63,7 +63,7 @@ Once you have built the package (or downloaded it from **Releases**), install it
 
 ```bash
 # Install the package (resolves Python dependencies automatically)
-sudo apt install ./debox_0.5.4-1_all.deb
+sudo apt install ./debox_0.5.5-1_all.deb
 ```
 
 ### Verification
