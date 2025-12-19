@@ -1,3 +1,9 @@
+debox (0.5.2-1) trixie; urgency=medium
+
+  * Fixed installation issues
+
+ -- Marcin Kaim <9829098+marcinkaim@users.noreply.github.com>  Fri, 19 Dec 2025 10:47:21 +0000
+
 debox (0.5.1-1) trixie; urgency=medium
 
   * Added package name autoupdate in README.md
