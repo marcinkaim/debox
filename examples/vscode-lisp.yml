@@ -29,6 +29,7 @@ runtime:
 
 integration:
   desktop_integration: true
+  startup_wm_class: "code"
   aliases:
     "code": "code-lisp"
   skip_categories:

@@ -31,6 +31,7 @@ def add_desktop_integration(config: dict):
     
     integration_cfg = config.get('integration', {}) 
     alias_map = integration_cfg.get('aliases', {})
+    forced_wm_class = integration_cfg.get('startup_wm_class')
     skip_categories_set = set(integration_cfg.get('skip_categories', []))
     skip_names_set = set(integration_cfg.get('skip_names', []))
     desktop_integration_enabled = integration_cfg.get('desktop_integration', True) # Check flag
@@ -170,6 +171,12 @@ def add_desktop_integration(config: dict):
             log_debug("-> Saving integrated .desktop files...")
             for original_path, parser in parsed_data: # Removed original_exec_map from tuple
                 original_filename = Path(original_path).name
+
+                if forced_wm_class:
+                    if not parser.has_section('Desktop Entry'):
+                        parser.add_section('Desktop Entry')
+                    parser.set('Desktop Entry', 'StartupWMClass', forced_wm_class)
+                    log_debug(f"    Forcing StartupWMClass={forced_wm_class} (from config)")
                 
                 # Modify Exec and Icon entries in all sections
                 for section_name in parser.sections():

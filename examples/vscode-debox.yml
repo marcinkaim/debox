@@ -32,6 +32,7 @@ runtime:
 
 integration:
   desktop_integration: true
+  startup_wm_class: "code"
   aliases:
     "code": "code-debox"
   skip_categories:
