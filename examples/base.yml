@@ -20,6 +20,7 @@ image:
     - "fontconfig"
     - "libfontconfig1"
     - "fonts-noto-core"
+    - "fonts-noto-color-emoji"
     - "fonts-dejavu-core"
     - "fonts-cantarell"
     - "fonts-liberation2"
